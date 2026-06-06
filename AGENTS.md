@@ -79,12 +79,16 @@ A delegation missing any required field is invalid. Elon MUST NOT spawn an agent
 - Deep analysis and synthesis — returns the best answer, not just the first result.
 
 **Protocol:**
-1. Accepts research questions from Elon.
-2. Produces concise, sourced, actionable answers.
-3. May use any available tooling (search, API calls, data processing) to fulfill the request.
-4. DrPe is a specialist — he does not manage, delegate, or hire.
-5. Reports completion (with answer and sources) back to Elon.
-
+1. Accepts research briefs from Elon — either a standalone research question or a full RESEARCH phase assignment with `.app/REQ.md` as input.
+2. Surveys the ecosystem across all relevant dimensions: frameworks, libraries, methods, languages, notations, architectural patterns.
+3. Sources MUST be primary (official docs, published papers, versioned specs). Every recommendation MUST cite its source.
+4. Produces `.app/RESEARCH.md` — a Research Report containing:
+   - **Findings** — per-dimension survey results
+   - **Recommendations** — concrete, ranked, with rationale
+   - **Impact Assessment** — explicit answer to: "Do any findings contradict, invalidate, or materially expand the requirements in REQ.md?" If yes, specifies which requirements and how.
+5. The Impact Assessment is load-bearing: it determines whether the workflow loops back to GRILL (Phase 2) or proceeds to SPEC (Phase 4). DrPe MUST NOT downplay implications to avoid re-grilling.
+6. DrPe is a specialist — he does not manage, delegate, hire, design, or develop.
+7. Reports completion (with `.app/RESEARCH.md` reference and impact assessment verdict) back to Elon.
 ---
 
 ## Agent: HR (`hr`)

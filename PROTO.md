@@ -15,13 +15,16 @@ The `.app/` directory holds the canonical protocol artifacts:
 |------|-------|---------------|-------------|
 | `.app/PROJECT.md` | Elon | 1 (REQUEST) | Project Definition & Status. Defines the project name, purpose, scope, and tracks its current phase/status. Created at the start of Phase 1. Updated as the project progresses through phases. |
 | `.app/REQ.md` | ReqGuru | 2b (GRILL) | Requirements Document. Synthesized from the GRILL interview. A complete, unambiguous description of what must be built. Replaces the old `REQUIREMENTS.md`. |
+| `.app/RESEARCH.md` | DrPe | 3 (RESEARCH) | Research Report. Survey of best frameworks, libraries, methods, languages, and notations for the task. Includes recommendations and an impact assessment: does anything found contradict or materially expand the requirements? |
 
 ## Phases
 
 ```
-REQUEST → GRILL → SPEC → DEVELOP ⇄ VALIDATE → DONE
-                         ↑___________|
-                        (iterate until PASS)
+REQUEST → GRILL → RESEARCH → SPEC → DEVELOP ⇄ VALIDATE → DONE
+                    ↑   ↓                  ↑___________|
+                    └───┘              (iterate until PASS)
+               (re-grill if
+                research demands it)
 ```
 
 
@@ -69,30 +72,52 @@ ELON spawns ReqGuru ──→ ReqGuru analyzes answers,
 |-------|--------|
 | ReqGuru | Synthesizes the complete Q&A into a **Requirements Document** — a complete, unambiguous description of what must be built. Writes it to `.app/REQ.md`. |
 | Elon | Reviews. If gaps remain, re-enters the grill loop at 2a. Otherwise, spawns **LeadDev** for spec creation. |
-**Commit rule:** `.app/REQ.md` is committed before entering Phase 3.
+**Commit rule:** `.app/REQ.md` is committed before entering Phase 3 (RESEARCH).
 ---
 
-## Phase 3: SPEC (Specification)
+## Phase 3: RESEARCH
+
+Before technical specification begins, Elon MUST commission a technology landscape survey to ensure the project is built with the best available tools and to surface any requirement-level implications of technology choices.
 
 | Actor | Action |
 |-------|--------|
-| LeadDev | Translates the Requirements Document into a formal **Spec** — technical design, interfaces, data models, behavior contracts, acceptance tests. |
-| Elon | Reviews the Spec. Spawns **DrPe** for research if technical unknowns exist. |
+| Elon  | Spawns **DrPe** with `.app/REQ.md` and a research brief. |
+| DrPe  | Surveys the ecosystem: best frameworks, libraries, methods, languages, notations, and architectural patterns for the task. Sources MUST include primary references (official docs, published papers, versioned specs). |
+| DrPe  | Produces `.app/RESEARCH.md` — a Research Report containing: (a) findings per dimension surveyed, (b) concrete recommendations with rationale, and (c) an **impact assessment** that answers: "Do any findings contradict, invalidate, or materially expand the requirements in REQ.md?" |
+| Elon  | Reviews the Research Report. |
+
+### 3a. GATE — Re-Grill or Proceed
+
+| Finding | Elon's Action |
+|---------|---------------|
+| Research surfaces new technology, constraint, or capability that contradicts or materially expands the requirements. | **LOOP BACK** to Phase 2 (GRILL). Elon spawns ReqGuru with the Research Report as additional context. The grill resumes with the new information. |
+| Research confirms existing requirements or surfaces only implementation-level recommendations (library choices, code patterns) that do not change WHAT is built. | **PROCEED** to Phase 4 (SPEC). Elon spawns LeadDev with both `.app/REQ.md` and `.app/RESEARCH.md`. |
+
+**Gate:** Elon determines whether the impact assessment demands re-grilling. Elon MUST NOT proceed to SPEC if any requirement-level ambiguity or contradiction was surfaced by the research.
+
+**Commit rule:** `.app/RESEARCH.md` is committed before entering Phase 4.
+
+## Phase 4: SPEC (Specification)
+
+| Actor | Action |
+|-------|--------|
+| LeadDev | Translates the Requirements Document (and Research Report if available) into a formal **Spec** — technical design, interfaces, data models, behavior contracts, acceptance tests. |
+| Elon | Reviews the Spec. |
 | Elon | Reviews and signs off on the Spec. |
 | Elon | Spawns **LeadDev** with the signed Spec and delegates implementation. |
 
 **Commit rule:** The Spec file is committed to `.app/` before development begins.
 
 **Gate A:** Spec is complete enough that an independent agent can validate against it.
-**Gate B:** Elon has spawned LeadDev with a complete delegation referencing the Spec. Elon MUST NOT proceed to Phase 4 without spawning LeadDev.
+**Gate B:** Elon has spawned LeadDev with a complete delegation referencing the Spec. Elon MUST NOT proceed to Phase 5 without spawning LeadDev.
 
 ---
 
-## Phase 4: DEVELOP & VALIDATE (Loop)
+## Phase 5: DEVELOP & VALIDATE (Loop)
 
 This phase repeats until the Validator is satisfied.
 
-**Elon MUST NOT write implementation code, fix validation failures, or perform any LeadDev or Validator role during this phase. Elon's role in Phase 4 is exclusively spawning agents, gatekeeping, and routing results.**
+**Elon MUST NOT write implementation code, fix validation failures, or perform any LeadDev or Validator role during this phase. Elon's role in Phase 5 is exclusively spawning agents, gatekeeping, and routing results.**
 
 ### 4a. DEVELOP
 
@@ -124,25 +149,25 @@ This phase repeats until the Validator is satisfied.
 
 ---
 
-## Phase 5: DONE
+## Phase 6: DONE
 
 | Actor | Action |
 |-------|--------|
 | Validator | Final PASS verdict. |
-| Elon    | Marks the request complete. Archives `.app/REQ.md`, the Spec, and the final Validation Report within `.app/archive/`. Updates `.app/PROJECT.md` to reflect completion. |
+| Elon    | Marks the request complete. Archives `.app/REQ.md`, `.app/RESEARCH.md`, the Spec, and the final Validation Report within `.app/archive/`. Updates `.app/PROJECT.md` to reflect completion. |
 
 ---
 
 ## Agent-to-Phase Map
 
-| Agent    | Phase(s)               | Artifacts Owned       | Responsibility |
-|----------|------------------------|-----------------------|----------------|
-| Elon     | 1, 2, 5 (gates all)    | `.app/PROJECT.md`     | Orchestration, routing, gates. Present in every phase solely for gatekeeping and routing — never for implementation, validation, or artifact authoring. |
-| ReqGuru  | GRILL                  | `.app/REQ.md`         | Requirements gathering |
-| DrPe     | SPEC (on demand)       | —                     | Technical research |
-| LeadDev  | SPEC, DEVELOP, RESOLVE | Spec file (in `.app/`)| Design, implementation, fixes |
-| Validator| VALIDATE               | —                     | Compliance auditing |
-| HR       | DEVELOP (on demand)    | —                     | Hiring specialist developers |
+| Agent    | Phase(s)                    | Artifacts Owned       | Responsibility |
+|----------|-----------------------------|-----------------------|----------------|
+| Elon     | 1, 2, 3, 4, 6 (gates all)   | `.app/PROJECT.md`     | Orchestration, routing, gates. Present in every phase solely for gatekeeping and routing — never for implementation, validation, or artifact authoring. |
+| ReqGuru  | GRILL                       | `.app/REQ.md`         | Requirements gathering |
+| DrPe     | RESEARCH                    | `.app/RESEARCH.md`    | Technology landscape survey. Researches best frameworks, libraries, methods, languages, notations. Produces impact assessment — re-grill if requirements affected. |
+| LeadDev  | SPEC, DEVELOP, RESOLVE      | Spec file (in `.app/`)| Design, implementation, fixes |
+| Validator| VALIDATE                    | —                     | Compliance auditing |
+| HR       | DEVELOP (on demand)         | —                     | Hiring specialist developers |
 
 ---
 
@@ -151,4 +176,4 @@ This phase repeats until the Validator is satisfied.
 - Format: `[SPEC §section] description`
 - Example: `[SPEC §3.2] Implement user authentication middleware`
 - Every significant change — interface additions, behavioral changes, bug fixes — gets its own commit.
-- Protocol artifacts (`.app/REQ.md`, Spec, `.app/PROJECT.md`) are committed at their respective phase gates.
+- Protocol artifacts (`.app/REQ.md`, `.app/RESEARCH.md`, Spec, `.app/PROJECT.md`) are committed at their respective phase gates.
