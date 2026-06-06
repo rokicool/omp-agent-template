@@ -158,7 +158,7 @@ def _validate_existence(
                 f"Insufficient permissions: Service Principal lacks "
                 f"'GroupMember.ReadWrite.All'. Received 403 for user '{uid}'."
             )
-            return errors
+            break
         except GraphError as e:
             errors.append(f"Failed to verify user '{uid}': {e}")
 
@@ -173,7 +173,7 @@ def _validate_existence(
                     f"Insufficient permissions: Service Principal lacks "
                     f"'GroupMember.ReadWrite.All'. Received 403 for group '{gid}'."
                 )
-            return errors
+            break
         except GraphError as e:
             errors.append(f"Failed to verify group '{gid}': {e}")
 

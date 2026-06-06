@@ -169,9 +169,10 @@ class TestExistence:
         assert len(errors) == 1
         assert "Group" in errors[0]
 
-    def test_permission_error_stops_checking(self) -> None:
+    def test_permission_error_stops_user_loop_but_checks_groups(self) -> None:
         client = MagicMock()
         client.check_user_exists.side_effect = PermissionError("no perms", 403)
+        client.check_group_exists.return_value = True
         spec = make_input_spec(
             [
                 Operation("add-user-to-group", "u1", "g1"),
@@ -181,10 +182,28 @@ class TestExistence:
         errors = _validate_existence(spec, client)
         assert len(errors) == 1
         assert "Insufficient permissions" in errors[0]
-        # Should stop after first permission error on users
+        # User loop stops after first permission error on users
         assert client.check_user_exists.call_count == 1
-        # Groups should not be checked
-        client.check_group_exists.assert_not_called()
+        # Groups are still checked (loop runs independently)
+        assert client.check_group_exists.call_count == 2
+
+    def test_permission_error_deduplication_across_loops(self) -> None:
+        """PermissionError on both user and group checks → only one message."""
+        client = MagicMock()
+        client.check_user_exists.side_effect = PermissionError("no perms", 403)
+        client.check_group_exists.side_effect = PermissionError("no perms", 403)
+        spec = make_input_spec(
+            [
+                Operation("add-user-to-group", "u1", "g1"),
+            ]
+        )
+        errors = _validate_existence(spec, client)
+        # Only one "Insufficient permissions" message (deduplicated)
+        assert len(errors) == 1
+        assert "Insufficient permissions" in errors[0]
+        # Both loops were attempted
+        assert client.check_user_exists.call_count == 1
+        assert client.check_group_exists.call_count == 1
 
     def test_graph_error_collected(self) -> None:
         client = MagicMock()
