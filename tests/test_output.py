@@ -221,8 +221,9 @@ class TestSummaryTable:
 
 class TestResultRow:
     def test_fields(self) -> None:
-        row = ResultRow(action="add-user-to-group", user_id="u1",
-                        group_id="g1", status="OK")
+        row = ResultRow(
+            action="add-user-to-group", user_id="u1", group_id="g1", status="OK"
+        )
         assert row.action == "add-user-to-group"
         assert row.user_id == "u1"
         assert row.group_id == "g1"

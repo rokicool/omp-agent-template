@@ -61,18 +61,22 @@ class TestPreflightResult:
 class TestCrossReference:
     def test_all_actions_allowed(self) -> None:
         cfg = make_app_config(frozenset({"add-user-to-group"}))
-        spec = make_input_spec([
-            Operation("add-user-to-group", "u1", "g1"),
-            Operation("add-user-to-group", "u2", "g1"),
-        ])
+        spec = make_input_spec(
+            [
+                Operation("add-user-to-group", "u1", "g1"),
+                Operation("add-user-to-group", "u2", "g1"),
+            ]
+        )
         errors = _validate_cross_reference(spec, cfg)
         assert errors == []
 
     def test_action_not_allowed(self) -> None:
         cfg = make_app_config(frozenset({"add-user-to-group"}))
-        spec = make_input_spec([
-            Operation("remove-user-from-group", "u1", "g1"),
-        ])
+        spec = make_input_spec(
+            [
+                Operation("remove-user-from-group", "u1", "g1"),
+            ]
+        )
         errors = _validate_cross_reference(spec, cfg)
         assert len(errors) == 1
         assert "operations[0]" in errors[0]
@@ -80,10 +84,12 @@ class TestCrossReference:
 
     def test_multiple_violations_collected(self) -> None:
         cfg = make_app_config(frozenset())
-        spec = make_input_spec([
-            Operation("add-user-to-group", "u1", "g1"),
-            Operation("remove-user-from-group", "u2", "g1"),
-        ])
+        spec = make_input_spec(
+            [
+                Operation("add-user-to-group", "u1", "g1"),
+                Operation("remove-user-from-group", "u2", "g1"),
+            ]
+        )
         errors = _validate_cross_reference(spec, cfg)
         assert len(errors) == 2
 
@@ -118,10 +124,12 @@ class TestExistence:
         client = MagicMock()
         client.check_user_exists.return_value = True
         client.check_group_exists.return_value = True
-        spec = make_input_spec([
-            Operation("add-user-to-group", "u1", "g1"),
-            Operation("add-user-to-group", "u2", "g1"),
-        ])
+        spec = make_input_spec(
+            [
+                Operation("add-user-to-group", "u1", "g1"),
+                Operation("add-user-to-group", "u2", "g1"),
+            ]
+        )
         errors = _validate_existence(spec, client)
         assert errors == []
 
@@ -130,11 +138,13 @@ class TestExistence:
         client = MagicMock()
         client.check_user_exists.return_value = True
         client.check_group_exists.return_value = True
-        spec = make_input_spec([
-            Operation("add-user-to-group", "u1", "g1"),
-            Operation("add-user-to-group", "u1", "g2"),
-            Operation("remove-user-from-group", "u1", "g1"),
-        ])
+        spec = make_input_spec(
+            [
+                Operation("add-user-to-group", "u1", "g1"),
+                Operation("add-user-to-group", "u1", "g2"),
+                Operation("remove-user-from-group", "u1", "g1"),
+            ]
+        )
         _validate_existence(spec, client)
         # u1 should be checked exactly once
         assert client.check_user_exists.call_count == 1
@@ -162,10 +172,12 @@ class TestExistence:
     def test_permission_error_stops_checking(self) -> None:
         client = MagicMock()
         client.check_user_exists.side_effect = PermissionError("no perms", 403)
-        spec = make_input_spec([
-            Operation("add-user-to-group", "u1", "g1"),
-            Operation("add-user-to-group", "u2", "g2"),
-        ])
+        spec = make_input_spec(
+            [
+                Operation("add-user-to-group", "u1", "g1"),
+                Operation("add-user-to-group", "u2", "g2"),
+            ]
+        )
         errors = _validate_existence(spec, client)
         assert len(errors) == 1
         assert "Insufficient permissions" in errors[0]
@@ -192,9 +204,11 @@ class TestExistence:
 class TestRunOrchestration:
     def test_run_all_phases_pass(self) -> None:
         cfg = make_app_config()
-        spec = make_input_spec([
-            Operation("add-user-to-group", "u1", "g1"),
-        ])
+        spec = make_input_spec(
+            [
+                Operation("add-user-to-group", "u1", "g1"),
+            ]
+        )
         # Mock GraphClient at the module level where it's imported
         with patch("src.preflight.GraphClient") as MockClient:
             mock_client = MockClient.return_value
@@ -209,9 +223,11 @@ class TestRunOrchestration:
 
     def test_run_cross_reference_fails(self) -> None:
         cfg = make_app_config(frozenset({"add-user-to-group"}))
-        spec = make_input_spec([
-            Operation("remove-user-from-group", "u1", "g1"),
-        ])
+        spec = make_input_spec(
+            [
+                Operation("remove-user-from-group", "u1", "g1"),
+            ]
+        )
         with patch("src.preflight.GraphClient") as MockClient:
             result = run(spec, cfg)
             assert not result.passed
@@ -219,9 +235,11 @@ class TestRunOrchestration:
 
     def test_run_connectivity_fails_skips_existence(self) -> None:
         cfg = make_app_config()
-        spec = make_input_spec([
-            Operation("add-user-to-group", "u1", "g1"),
-        ])
+        spec = make_input_spec(
+            [
+                Operation("add-user-to-group", "u1", "g1"),
+            ]
+        )
         with patch("src.preflight.GraphClient") as MockClient:
             mock_client = MockClient.return_value
             mock_client.acquire_token.side_effect = TokenError("auth failed")
@@ -235,9 +253,11 @@ class TestRunOrchestration:
 
     def test_run_no_preflight_skips_connectivity_existence(self) -> None:
         cfg = make_app_config()
-        spec = make_input_spec([
-            Operation("add-user-to-group", "u1", "g1"),
-        ])
+        spec = make_input_spec(
+            [
+                Operation("add-user-to-group", "u1", "g1"),
+            ]
+        )
         with patch("src.preflight.GraphClient") as MockClient:
             result = run(spec, cfg, no_preflight=True)
             # Cross-ref passes (action is in config.actions)
@@ -247,9 +267,11 @@ class TestRunOrchestration:
 
     def test_run_existence_fails(self) -> None:
         cfg = make_app_config()
-        spec = make_input_spec([
-            Operation("add-user-to-group", "u1", "g1"),
-        ])
+        spec = make_input_spec(
+            [
+                Operation("add-user-to-group", "u1", "g1"),
+            ]
+        )
         with patch("src.preflight.GraphClient") as MockClient:
             mock_client = MockClient.return_value
             mock_client.acquire_token.return_value = "token"

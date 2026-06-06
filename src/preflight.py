@@ -9,7 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .config import AppConfig, InputSpec
-from .graph_client import GraphClient, TokenError, PermissionError, NotFoundError, GraphError
+from .graph_client import (
+    GraphClient,
+    TokenError,
+    PermissionError,
+    NotFoundError,
+    GraphError,
+)
 from .output import inf, ok, err
 
 

@@ -42,47 +42,51 @@ class NotFoundError(GraphError):
 # MSAL error classification (per SPEC §5.5)
 # ---------------------------------------------------------------------------
 
-_MSAL_RETRYABLE_ERRORS: frozenset[str] = frozenset({
-    "temporarily_unavailable",
-    "AADSTS50033",
-    "AADSTS90006",
-    "AADSTS90012",
-    "AADSTS90024",
-    "AADSTS90033",
-    "AADSTS90055",
-    "AADSTS90090",
-    "AADSTS90091",
-    "AADSTS40010",
-    "AADSTS50087",
-    "AADSTS50162",
-    "AADSTS501621",
-})
+_MSAL_RETRYABLE_ERRORS: frozenset[str] = frozenset(
+    {
+        "temporarily_unavailable",
+        "AADSTS50033",
+        "AADSTS90006",
+        "AADSTS90012",
+        "AADSTS90024",
+        "AADSTS90033",
+        "AADSTS90055",
+        "AADSTS90090",
+        "AADSTS90091",
+        "AADSTS40010",
+        "AADSTS50087",
+        "AADSTS50162",
+        "AADSTS501621",
+    }
+)
 
-_MSAL_TERMINAL_ERRORS: frozenset[str] = frozenset({
-    "invalid_client",
-    "invalid_grant",
-    "unauthorized_client",
-    "invalid_scope",
-    "invalid_resource",
-    "AADSTS70002",
-    "AADSTS700011",
-    "AADSTS700016",
-    "AADSTS70001",
-    "AADSTS7000112",
-    "AADSTS7000215",
-    "AADSTS7000222",
-    "AADSTS700027",
-    "AADSTS50001",
-    "AADSTS500011",
-    "AADSTS50012",
-    "AADSTS90002",
-    "AADSTS90036",
-    "AADSTS90092",
-    "AADSTS90094",
-    "AADSTS65001",
-    "AADSTS53003",
-    "AADSTS530035",
-})
+_MSAL_TERMINAL_ERRORS: frozenset[str] = frozenset(
+    {
+        "invalid_client",
+        "invalid_grant",
+        "unauthorized_client",
+        "invalid_scope",
+        "invalid_resource",
+        "AADSTS70002",
+        "AADSTS700011",
+        "AADSTS700016",
+        "AADSTS70001",
+        "AADSTS7000112",
+        "AADSTS7000215",
+        "AADSTS7000222",
+        "AADSTS700027",
+        "AADSTS50001",
+        "AADSTS500011",
+        "AADSTS50012",
+        "AADSTS90002",
+        "AADSTS90036",
+        "AADSTS90092",
+        "AADSTS90094",
+        "AADSTS65001",
+        "AADSTS53003",
+        "AADSTS530035",
+    }
+)
 
 
 def _is_retryable_msal_error(error: str) -> bool:
@@ -145,10 +149,12 @@ class GraphClient:
             authority=app_config.authority,
         )
         self._session = requests.Session()
-        self._session.headers.update({
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-        })
+        self._session.headers.update(
+            {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            }
+        )
 
     # -- token management ----------------------------------------------------
 

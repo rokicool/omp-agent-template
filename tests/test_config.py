@@ -82,9 +82,7 @@ class TestLoadConfigMissingFile:
 
 class TestLoadConfigInvalidYaml:
     def test_bad_syntax(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("identity_id: [unclosed\n")
             bad_path = f.name
         try:
@@ -98,9 +96,7 @@ class TestLoadConfigInvalidYaml:
             os.unlink(bad_path)
 
     def test_root_not_mapping(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("- item1\n- item2\n")
             bad_path = f.name
         try:
@@ -121,9 +117,7 @@ class TestLoadConfigInvalidYaml:
 class TestLoadConfigBatchedErrors:
     def test_missing_all_required_keys(self) -> None:
         """Empty config should collect errors for all missing keys."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("actions: []\n")
             path = f.name
         try:
@@ -143,9 +137,7 @@ class TestLoadConfigBatchedErrors:
     def test_bad_actions_collect_all(self) -> None:
         """All bad actions should be collected."""
         os.environ["ENTRA_CLIENT_SECRET"] = "test-secret"
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("""
 identity_id: "app-123"
 tenant_id: "tenant-456"
@@ -184,7 +176,9 @@ actions:
                 with pytest.raises(ConfigError) as exc_info:
                     load_config(path)
                 errors = exc_info.value.errors
-                secret_errors = [e for e in errors if "ENTRA_CLIENT_SECRET" in e.message]
+                secret_errors = [
+                    e for e in errors if "ENTRA_CLIENT_SECRET" in e.message
+                ]
                 assert len(secret_errors) == 1
             finally:
                 os.unlink(path)
@@ -201,9 +195,7 @@ actions:
 class TestLoadConfigValid:
     def test_minimal_valid_config(self) -> None:
         os.environ["ENTRA_CLIENT_SECRET"] = "test-secret"
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("""
 identity_id: "app-123"
 tenant_id: "tenant-456"
@@ -245,9 +237,7 @@ class TestLoadInputMissingFile:
 
 class TestLoadInputEmptyOperations:
     def test_empty_list(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("operations: []\n")
             path = f.name
         try:
@@ -260,9 +250,7 @@ class TestLoadInputEmptyOperations:
             os.unlink(path)
 
     def test_operations_not_list(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("operations: not-a-list\n")
             path = f.name
         try:
@@ -275,9 +263,7 @@ class TestLoadInputEmptyOperations:
             os.unlink(path)
 
     def test_missing_operations_key(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("other_key: value\n")
             path = f.name
         try:
@@ -297,9 +283,7 @@ class TestLoadInputEmptyOperations:
 
 class TestLoadInputBatchedErrors:
     def test_multiple_ops_with_errors(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("""
 operations:
   - action: add-user-to-group
@@ -316,14 +300,14 @@ operations:
             with pytest.raises(ConfigError) as exc_info:
                 load_input(path)
             errors = exc_info.value.errors
-            assert len(errors) >= 3  # op0: missing 2, op1: missing 1, op2: not dict/extra/bad action
+            assert (
+                len(errors) >= 3
+            )  # op0: missing 2, op1: missing 1, op2: not dict/extra/bad action
         finally:
             os.unlink(path)
 
     def test_extra_keys_detected(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("""
 operations:
   - action: add-user-to-group
@@ -350,9 +334,7 @@ operations:
 
 class TestLoadInputValid:
     def test_valid_input(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("""
 operations:
   - action: add-user-to-group
@@ -381,9 +363,7 @@ operations:
 
 class TestLoadInputEmptyFields:
     def test_empty_action(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("""
 operations:
   - action: ""
@@ -470,6 +450,8 @@ actions:
             client_secret="secret123",
         )
         rep = repr(cfg)
-        assert "secret123" in rep  # dataclass default repr includes it (not safety concern)
+        assert (
+            "secret123" in rep
+        )  # dataclass default repr includes it (not safety concern)
         # The real safety mechanism is: never print AppConfig itself in errors.
         # ValidationErrors reference config keys, not AppConfig values.

@@ -257,8 +257,10 @@ class TestSuccessfulExecution:
         inp_path = _make_input_path()
         os.environ["ENTRA_CLIENT_SECRET"] = "test-secret"
         try:
-            with patch("src.preflight.GraphClient") as MockPreflightClient, \
-                 patch("src.main.GraphClient") as MockExecClient:
+            with (
+                patch("src.preflight.GraphClient") as MockPreflightClient,
+                patch("src.main.GraphClient") as MockExecClient,
+            ):
                 # Preflight mock
                 pf_client = MockPreflightClient.return_value
                 pf_client.acquire_token.return_value = "token"
@@ -282,8 +284,10 @@ class TestSuccessfulExecution:
         inp_path = _make_input_path()
         os.environ["ENTRA_CLIENT_SECRET"] = "test-secret"
         try:
-            with patch("src.preflight.GraphClient") as MockPreflightClient, \
-                 patch("src.main.GraphClient") as MockExecClient:
+            with (
+                patch("src.preflight.GraphClient") as MockPreflightClient,
+                patch("src.main.GraphClient") as MockExecClient,
+            ):
                 pf_client = MockPreflightClient.return_value
                 pf_client.acquire_token.return_value = "token"
                 pf_client.check_user_exists.return_value = True
@@ -310,8 +314,10 @@ operations:
 """)
         os.environ["ENTRA_CLIENT_SECRET"] = "test-secret"
         try:
-            with patch("src.preflight.GraphClient") as MockPreflightClient, \
-                 patch("src.main.GraphClient") as MockExecClient:
+            with (
+                patch("src.preflight.GraphClient") as MockPreflightClient,
+                patch("src.main.GraphClient") as MockExecClient,
+            ):
                 pf_client = MockPreflightClient.return_value
                 pf_client.acquire_token.return_value = "token"
                 pf_client.check_user_exists.return_value = True
@@ -333,15 +339,19 @@ operations:
         inp_path = _make_input_path()
         os.environ["ENTRA_CLIENT_SECRET"] = "test-secret"
         try:
-            with patch("src.preflight.GraphClient") as MockPreflightClient, \
-                 patch("src.main.GraphClient") as MockExecClient:
+            with (
+                patch("src.preflight.GraphClient") as MockPreflightClient,
+                patch("src.main.GraphClient") as MockExecClient,
+            ):
                 pf_client = MockPreflightClient.return_value
                 pf_client.acquire_token.return_value = "token"
                 pf_client.check_user_exists.return_value = True
                 pf_client.check_group_exists.return_value = True
 
                 exec_client = MockExecClient.return_value
-                exec_client.add_user_to_group.side_effect = GraphError("Server error", 500)
+                exec_client.add_user_to_group.side_effect = GraphError(
+                    "Server error", 500
+                )
 
                 code = main(["--config", cfg_path, "--input", inp_path])
                 assert code == ExitCode.ERRORS
@@ -368,6 +378,7 @@ class TestPreflightErrors:
                 mock_client.acquire_token.return_value = "token"
                 mock_client.check_user_exists.return_value = True
                 from src.graph_client import NotFoundError
+
                 mock_client.check_group_exists.side_effect = NotFoundError("gone", 404)
 
                 code = main(["--config", cfg_path, "--input", inp_path])
@@ -387,7 +398,9 @@ class TestPreflightErrors:
                 exec_client = MockExecClient.return_value
                 exec_client.add_user_to_group.side_effect = GraphError("Not found", 404)
 
-                code = main(["--config", cfg_path, "--input", inp_path, "--no-preflight"])
+                code = main(
+                    ["--config", cfg_path, "--input", inp_path, "--no-preflight"]
+                )
                 assert code == ExitCode.ERRORS
         finally:
             os.unlink(cfg_path)
@@ -436,8 +449,10 @@ operations:
 """)
         os.environ["ENTRA_CLIENT_SECRET"] = "test-secret"
         try:
-            with patch("src.preflight.GraphClient") as MockPreflightClient, \
-                 patch("src.main.GraphClient") as MockExecClient:
+            with (
+                patch("src.preflight.GraphClient") as MockPreflightClient,
+                patch("src.main.GraphClient") as MockExecClient,
+            ):
                 pf_client = MockPreflightClient.return_value
                 pf_client.acquire_token.return_value = "token"
                 pf_client.check_user_exists.return_value = True
@@ -493,8 +508,10 @@ operations:
 """)
         os.environ["ENTRA_CLIENT_SECRET"] = "test-secret"
         try:
-            with patch("src.preflight.GraphClient") as MockPreflightClient, \
-                 patch("src.main.GraphClient") as MockExecClient:
+            with (
+                patch("src.preflight.GraphClient") as MockPreflightClient,
+                patch("src.main.GraphClient") as MockExecClient,
+            ):
                 pf_client = MockPreflightClient.return_value
                 pf_client.acquire_token.return_value = "token"
                 pf_client.check_user_exists.return_value = True
@@ -531,6 +548,7 @@ operations:
 class TestOperationResult:
     def test_fields(self) -> None:
         from src.config import Operation
+
         op = Operation("add-user-to-group", "u1", "g1")
         result = OperationResult(op, OperationStatus.OK, "Done")
         assert result.operation == op

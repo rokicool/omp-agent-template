@@ -131,9 +131,12 @@ class TestRequestRetry:
         success = MagicMock(spec=requests.Response)
         success.status_code = 200
 
-        with patch.object(client._session, "request",
-                          side_effect=[fail_500, fail_500, success]) as mock_req, \
-             patch("src.graph_client.time.sleep", return_value=None) as mock_sleep:
+        with (
+            patch.object(
+                client._session, "request", side_effect=[fail_500, fail_500, success]
+            ) as mock_req,
+            patch("src.graph_client.time.sleep", return_value=None) as mock_sleep,
+        ):
             resp = client._request("GET", "https://example.com")
             assert resp.status_code == 200
             assert mock_req.call_count == 3
@@ -146,8 +149,10 @@ class TestRequestRetry:
         fail_500.status_code = 500
         fail_500.text = "Internal Server Error"
 
-        with patch.object(client._session, "request", return_value=fail_500), \
-             patch("src.graph_client.time.sleep", return_value=None):
+        with (
+            patch.object(client._session, "request", return_value=fail_500),
+            patch("src.graph_client.time.sleep", return_value=None),
+        ):
             with pytest.raises(GraphError) as exc_info:
                 client._request("GET", "https://example.com")
             assert "Server error" in str(exc_info.value)
@@ -162,9 +167,12 @@ class TestRequestRetry:
         success = MagicMock(spec=requests.Response)
         success.status_code = 200
 
-        with patch.object(client._session, "request",
-                          side_effect=[fail_429, success]) as mock_req, \
-             patch("src.graph_client.time.sleep", return_value=None) as mock_sleep:
+        with (
+            patch.object(
+                client._session, "request", side_effect=[fail_429, success]
+            ) as mock_req,
+            patch("src.graph_client.time.sleep", return_value=None) as mock_sleep,
+        ):
             resp = client._request("GET", "https://example.com")
             assert resp.status_code == 200
             assert mock_req.call_count == 2
@@ -177,9 +185,13 @@ class TestRequestRetry:
         fail_400 = MagicMock(spec=requests.Response)
         fail_400.status_code = 400
         fail_400.reason = "Bad Request"
-        fail_400.json = MagicMock(return_value={"error": {"code": "BadRequest", "message": "nope"}})
+        fail_400.json = MagicMock(
+            return_value={"error": {"code": "BadRequest", "message": "nope"}}
+        )
 
-        with patch.object(client._session, "request", return_value=fail_400) as mock_req:
+        with patch.object(
+            client._session, "request", return_value=fail_400
+        ) as mock_req:
             with pytest.raises(GraphError):
                 client._request("GET", "https://example.com")
             assert mock_req.call_count == 1  # No retry
@@ -187,13 +199,18 @@ class TestRequestRetry:
     def test_retry_on_connection_error(self) -> None:
         client = _make_client_with_token()
 
-        with patch.object(client._session, "request",
-                          side_effect=[
-                              requests.ConnectionError("connection refused"),
-                              requests.ConnectionError("connection refused"),
-                              MagicMock(spec=requests.Response, status_code=200),
-                          ]) as mock_req, \
-             patch("src.graph_client.time.sleep", return_value=None) as mock_sleep:
+        with (
+            patch.object(
+                client._session,
+                "request",
+                side_effect=[
+                    requests.ConnectionError("connection refused"),
+                    requests.ConnectionError("connection refused"),
+                    MagicMock(spec=requests.Response, status_code=200),
+                ],
+            ) as mock_req,
+            patch("src.graph_client.time.sleep", return_value=None) as mock_sleep,
+        ):
             resp = client._request("GET", "https://example.com")
             assert resp.status_code == 200
             assert mock_req.call_count == 3
@@ -202,12 +219,17 @@ class TestRequestRetry:
     def test_retry_on_timeout(self) -> None:
         client = _make_client_with_token()
 
-        with patch.object(client._session, "request",
-                          side_effect=[
-                              requests.Timeout("timed out"),
-                              MagicMock(spec=requests.Response, status_code=200),
-                          ]) as mock_req, \
-             patch("src.graph_client.time.sleep", return_value=None):
+        with (
+            patch.object(
+                client._session,
+                "request",
+                side_effect=[
+                    requests.Timeout("timed out"),
+                    MagicMock(spec=requests.Response, status_code=200),
+                ],
+            ) as mock_req,
+            patch("src.graph_client.time.sleep", return_value=None),
+        ):
             resp = client._request("GET", "https://example.com")
             assert resp.status_code == 200
             assert mock_req.call_count == 2
@@ -224,9 +246,14 @@ class TestErrorClassification:
 
         fail_403 = MagicMock(spec=requests.Response)
         fail_403.status_code = 403
-        fail_403.json = MagicMock(return_value={
-            "error": {"code": "Authorization_RequestDenied", "message": "Insufficient privileges"}
-        })
+        fail_403.json = MagicMock(
+            return_value={
+                "error": {
+                    "code": "Authorization_RequestDenied",
+                    "message": "Insufficient privileges",
+                }
+            }
+        )
 
         with patch.object(client._session, "request", return_value=fail_403):
             with pytest.raises(PermissionError) as exc_info:
@@ -238,9 +265,14 @@ class TestErrorClassification:
 
         fail_404 = MagicMock(spec=requests.Response)
         fail_404.status_code = 404
-        fail_404.json = MagicMock(return_value={
-            "error": {"code": "Request_ResourceNotFound", "message": "Resource not found"}
-        })
+        fail_404.json = MagicMock(
+            return_value={
+                "error": {
+                    "code": "Request_ResourceNotFound",
+                    "message": "Resource not found",
+                }
+            }
+        )
 
         with patch.object(client._session, "request", return_value=fail_404):
             with pytest.raises(NotFoundError) as exc_info:
@@ -261,8 +293,9 @@ class TestExistenceChecks:
 
     def test_check_user_exists_false(self) -> None:
         client = _make_client_with_token()
-        with patch.object(client, "_request",
-                          side_effect=NotFoundError("not found", 404)):
+        with patch.object(
+            client, "_request", side_effect=NotFoundError("not found", 404)
+        ):
             assert not client.check_user_exists("user-1")
 
     def test_check_group_exists_true(self) -> None:
@@ -272,8 +305,9 @@ class TestExistenceChecks:
 
     def test_check_group_exists_false(self) -> None:
         client = _make_client_with_token()
-        with patch.object(client, "_request",
-                          side_effect=NotFoundError("not found", 404)):
+        with patch.object(
+            client, "_request", side_effect=NotFoundError("not found", 404)
+        ):
             assert not client.check_group_exists("group-1")
 
 
@@ -311,13 +345,14 @@ class TestNotMemberDetection:
         """Pre-check membership returns 404 → not_member without DELETE."""
         client = _make_client_with_token()
 
-        with patch.object(client, "_is_group_member", return_value=False), \
-             patch.object(client, "_request") as mock_request:
+        with (
+            patch.object(client, "_is_group_member", return_value=False),
+            patch.object(client, "_request") as mock_request,
+        ):
             result = client.remove_user_from_group("u1", "g1")
             assert result == "not_member"
             delete_calls = [
-                c for c in mock_request.call_args_list
-                if c[0][0] == "DELETE"
+                c for c in mock_request.call_args_list if c[0][0] == "DELETE"
             ]
             assert len(delete_calls) == 0
 
@@ -325,8 +360,12 @@ class TestNotMemberDetection:
         """Pre-check returns True → issue DELETE → success."""
         client = _make_client_with_token()
 
-        with patch.object(client, "_is_group_member", return_value=True), \
-             patch.object(client, "_request", return_value=MagicMock(status_code=204)) as mock_request:
+        with (
+            patch.object(client, "_is_group_member", return_value=True),
+            patch.object(
+                client, "_request", return_value=MagicMock(status_code=204)
+            ) as mock_request,
+        ):
             result = client.remove_user_from_group("u1", "g1")
             assert result == "ok"
             assert any(c[0][0] == "DELETE" for c in mock_request.call_args_list)
@@ -335,9 +374,10 @@ class TestNotMemberDetection:
         """Pre-check said member but DELETE returns 404 (race)."""
         client = _make_client_with_token()
 
-        with patch.object(client, "_is_group_member", return_value=True), \
-             patch.object(client, "_request",
-                          side_effect=NotFoundError("gone", 404)):
+        with (
+            patch.object(client, "_is_group_member", return_value=True),
+            patch.object(client, "_request", side_effect=NotFoundError("gone", 404)),
+        ):
             result = client.remove_user_from_group("u1", "g1")
             assert result == "not_member"
 
@@ -351,7 +391,9 @@ class TestTokenAcquisition:
     def test_acquire_token_success(self) -> None:
         """Token returned on first attempt."""
         client = _make_client()
-        client._app.acquire_token_for_client.return_value = {"access_token": "token-123"}
+        client._app.acquire_token_for_client.return_value = {
+            "access_token": "token-123"
+        }
         token = client.acquire_token()
         assert token == "token-123"
 
@@ -389,8 +431,9 @@ class TestTokenAcquisition:
         }
         with pytest.raises(TokenError) as exc_info:
             client.acquire_token()
-        assert "invalid_client" in str(exc_info.value) or \
-               "bad client credentials" in str(exc_info.value)
+        assert "invalid_client" in str(
+            exc_info.value
+        ) or "bad client credentials" in str(exc_info.value)
 
     def test_acquire_token_network_error_retry(self) -> None:
         """Network error → retry, then success."""
@@ -406,7 +449,9 @@ class TestTokenAcquisition:
     def test_acquire_token_network_error_exhausted(self) -> None:
         """All retries exhausted on network errors → TokenError."""
         client = _make_client()
-        client._app.acquire_token_for_client.side_effect = requests.ConnectionError("always down")
+        client._app.acquire_token_for_client.side_effect = requests.ConnectionError(
+            "always down"
+        )
         with patch("src.graph_client.time.sleep", return_value=None):
             with pytest.raises(TokenError):
                 client.acquire_token()

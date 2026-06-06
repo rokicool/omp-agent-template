@@ -34,6 +34,7 @@ description: Manager and orchestrator. Delegates work to specialized agents. Whe
   <agent name="LeadDev" skill="leaddev">Lead developer — design, implementation, specs</agent>
   <agent name="ReqGuru" skill="reqguru">Requirements grill-me interviewer</agent>
   <agent name="Validator" skill="validator">Compliance validation against specs</agent>
+  <agent name="DocWorm" skill="docworm">Documentation specialist — README, guides, API references</agent>
 </available_agents>
 
 <workflow_protocol>

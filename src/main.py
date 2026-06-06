@@ -34,10 +34,10 @@ class OperationStatus(enum.Enum):
 
 
 class ExitCode(enum.IntEnum):
-    SUCCESS = 0       # All ops OK, zero WRN, zero ERR
+    SUCCESS = 0  # All ops OK, zero WRN, zero ERR
     PREFLIGHT_FAIL = 1  # Pre-flight validation failed, no mutations tried
-    WARNINGS = 2       # All ops done, >=1 WRN, zero ERR
-    ERRORS = 3         # Execution completed, >=1 ERR
+    WARNINGS = 2  # All ops done, >=1 WRN, zero ERR
+    ERRORS = 3  # Execution completed, >=1 ERR
 
 
 @dataclass
@@ -155,8 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     for op in input_spec.operations:
         verb = _action_verb(op.action)
         prep = _action_preposition(op.action)
-        inf(f"{verb} user {op.user_id} {prep} group {op.group_id}...",
-            quiet=args.quiet)
+        inf(f"{verb} user {op.user_id} {prep} group {op.group_id}...", quiet=args.quiet)
 
         try:
             outcome = _execute_operation(client, op)
@@ -173,16 +172,22 @@ def main(argv: list[str] | None = None) -> int:
         else:
             err(status_msg, quiet=args.quiet)
 
-        results.append(OperationResult(
-            operation=op,
-            status=status_val,
-            message=status_msg,
-        ))
+        results.append(
+            OperationResult(
+                operation=op,
+                status=status_val,
+                message=status_msg,
+            )
+        )
 
     # Summary (FR9.4)
     rows = [
-        ResultRow(r.operation.action, r.operation.user_id,
-                  r.operation.group_id, r.status.value)
+        ResultRow(
+            r.operation.action,
+            r.operation.user_id,
+            r.operation.group_id,
+            r.status.value,
+        )
         for r in results
     ]
     print_summary(rows)

@@ -76,7 +76,9 @@ def print_summary(rows: list[ResultRow]) -> None:
     col_w = {
         "action": max(len("action"), max((len(r.action) for r in rows), default=0)),
         "user_id": max(len("user_id"), max((len(r.user_id) for r in rows), default=0)),
-        "group_id": max(len("group_id"), max((len(r.group_id) for r in rows), default=0)),
+        "group_id": max(
+            len("group_id"), max((len(r.group_id) for r in rows), default=0)
+        ),
         "status": max(len("status"), max((len(r.status) for r in rows), default=0)),
     }
 
