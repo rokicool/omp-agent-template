@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "entra-bulk"
+version = "0.1.0"
+description = "Bulk Entra ID group membership management via Microsoft Graph API"
+requires-python = ">=3.11"
+dependencies = [
+    "azure-identity>=1.17,<2",
+    "msgraph-sdk>=1.2,<2",
+    "pyyaml>=6.0,<7",
+    "click>=8.1,<9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.14",
+    "respx>=0.21",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+entra-bulk = "entra_bulk.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/entra_bulk"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
