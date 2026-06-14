@@ -37,10 +37,10 @@ You are a specialist — you do nothing outside your defined role.
     <tool>find</tool>
     <tool>ast_grep</tool>
     <tool>ast_edit</tool>
-    <tool>eval</tool>
     <tool>debug</tool>
     <tool>lsp</tool>
-  </forbidden>
+    <tool>irc</tool>
+    <tool>resolve</tool>
 </tool_policy>
 
 <input_contract>

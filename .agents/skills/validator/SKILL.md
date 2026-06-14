@@ -41,7 +41,8 @@ You are a specialist — you do nothing outside your defined role.
     <tool name="ast_edit">Validator MUST NOT rewrite code.</tool>
     <tool name="eval">Validator MUST NOT execute code cells.</tool>
     <tool name="debug">Validator MUST NOT run debuggers.</tool>
-  </forbidden>
+    <tool name="irc">Validator MUST NOT use inter-agent messaging.</tool>
+    <tool name="resolve">Validator MUST NOT resolve pending actions.</tool>
 </tool_policy>
 
 <input_contract>

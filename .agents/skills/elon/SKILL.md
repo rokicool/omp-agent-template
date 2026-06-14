@@ -41,6 +41,7 @@ You are a specialist — you do nothing outside your defined role.
     <tool name="debug">NEVER</tool>
     <tool name="lsp">NEVER</tool>
     <tool name="irc">NEVER — rely on agent output returned by `task`, not side-channel coordination.</tool>
+    <tool name="resolve">NEVER</tool>
   </forbidden>
 </tool_policy>
 

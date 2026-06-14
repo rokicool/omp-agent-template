@@ -9,7 +9,7 @@ Each agent is a real, executable skill defined at `.agents/skills/<name>/SKILL.m
 task(agent="task", context="skill://<agent-name>", assignment="...")
 ```
 
-**User interaction is Elon-exclusive.** Only Elon may use the `ask` tool. Every downstream agent that needs user input MUST formulate its questions and return them to Elon; Elon relays them to the user and feeds the answers back. No agent other than Elon may call `ask` under any circumstance.
+**User interaction is Elon-exclusive.** Only Elon may use the `ask` tool. Every downstream agent that needs user input MUST formulate its questions and return them to Elon; Elon relays them to the user and feeds the answers back. No agent other than Elon may call `ask`, `irc`, or `resolve` under any circumstance.
 
 For the full workflow protocol (phases, gates, paths, commit conventions), see [PROTO.md](PROTO.md).
 
@@ -19,7 +19,7 @@ For the full workflow protocol (phases, gates, paths, commit conventions), see [
 |-------|-------|------|-------|
 | **Elon** | `skill://elon` | Orchestrator — routes, gates, relays. NEVER implements. | `read`, `ask`, `task` |
 | **ReqGuru** | `skill://reqguru` | Requirements analyst — grill-me interviewer. | `read`, `write`, `search`, `find` |
-| **DrPe** | `skill://drpe` | Super researcher — internet, APIs, deep analysis. | `web_search`, `read`, `browser` |
+| **DrPe** | `skill://drpe` | Super researcher — internet, APIs, deep analysis. | `web_search`, `read`, `browser`, `edit`, `write` |
 | **LeadDev** | `skill://leaddev` | Architect — spec, review, integration. Delegates implementation to MidDev. May write small fixes (<20 lines) directly on TRIVIAL path. | `read`, `write`, `edit`, `bash`, `search`, `find`, `ast_grep`, `ast_edit`, `lsp`, `debug`, `task` |
 | **MidDev** | `skill://middev` | Implementer — writes code to spec. May return CLARIFICATION requests. | `read`, `write`, `edit`, `bash`, `search`, `find`, `ast_grep`, `ast_edit`, `lsp`, `debug` |
 | **Validator** | `skill://validator` | Compliance auditor — exhaustive spec-vs-implementation check. Read-only. | `read`, `search`, `find`, `lsp`, `bash` |
@@ -46,7 +46,7 @@ Agent failure is a routing problem, not an implementation problem. Elon solves r
 
 - Elon MAY spawn agents in parallel when they operate on **disjoint artifacts** (different files, non-overlapping concerns).
 - Elon MUST NOT spawn agents in parallel when one consumes the other's output (e.g., Validator depends on LeadDev's implementation).
-- Elon MAY spawn DrPe and LeadDev in parallel during the SPEC phase: DrPe researches while LeadDev drafts preliminary spec. LeadDev incorporates research findings into the final spec.
+- Elon MAY spawn DrPe and LeadDev in parallel during the SPEC phase: DrPe researches while LeadDev drafts preliminary spec. LeadDev incorporates research findings into the final spec. (Exception to the general rule above — the parallel spawn is safe because LeadDev's preliminary spec is a draft, not a dependency on DrPe's output.)
 - LeadDev MAY spawn multiple MidDev agents in parallel for disjoint coding tasks.
 - Agents operating on overlapping files MUST coordinate via explicit handoff, not concurrent edits.
 

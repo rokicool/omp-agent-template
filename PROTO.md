@@ -90,7 +90,7 @@ ELON spawns ReqGuru ──→ ReqGuru analyzes answers,
 | ReqGuru | Synthesizes the complete Q&A into `.app/REQ.md`. |
 | Elon | Reviews. If gaps remain, re-enters the grill loop. Otherwise, proceeds. |
 
-**Commit rule:** `.app/REQ.md` is committed before entering Phase 3.
+**Commit rule:** Elon commits `.app/REQ.md` before entering Phase 3. (ReqGuru has no shell access; Elon owns protocol artifact commits.)
 
 ---
 
@@ -121,7 +121,7 @@ If spawned:
 | Research surfaces contradictions or material expansions to requirements | **LOOP BACK** to Phase 2. Spawn ReqGuru with the Research Report as context. |
 | Research confirms requirements or surfaces only implementation-level recommendations | **PROCEED** to Phase 4. |
 
-**Commit rule:** `.app/RESEARCH.md` is committed before entering Phase 4.
+**Commit rule:** Elon commits `.app/RESEARCH.md` before entering Phase 4. (DrPe has no shell access; Elon owns protocol artifact commits.)
 
 ---
 
@@ -134,7 +134,7 @@ If spawned:
 
 **Optional parallel path:** If RESEARCH was spawned, LeadDev MAY begin preliminary spec design while DrPe researches. LeadDev incorporates research findings into the final spec. This requires Elon to spawn both in parallel and merge the outputs.
 
-**Commit rule:** `.app/SPEC.md` is committed before development begins.
+**Commit rule:** `.app/SPEC.md` is committed before development begins. (LeadDev writes the Spec; Elon commits protocol artifacts at phase gates.)
 
 **Gate:** Spec is complete enough that an independent agent can validate against it.
 
@@ -149,7 +149,7 @@ Elon MUST NOT write implementation code, fix validation failures, or perform any
 | Actor | Action |
 |-------|--------|
 | Elon | Spawns **LeadDev** with the signed Spec and a complete delegation. |
-| LeadDev | Implements per the Spec. May delegate to MidDev for implementation tasks. May request **HR** for specialist developers. |
+| LeadDev | Implements per the Spec. May delegate to MidDev for implementation tasks. May spawn **HR** directly for specialist developers (LeadDev has `task` tool access). |
 | LeadDev | Commits every significant change. Commit messages reference the Spec section. |
 
 #### 5b. VALIDATE
@@ -223,7 +223,7 @@ For bugfixes, typos, config tweaks, doc-only changes, test additions, and intern
 
 | Actor | Action |
 |-------|--------|
-| Elon | Spawns **Validator** with the Spec, the changed files only, and the TRIVIAL path flag. |
+| Elon | Spawns **Validator** with the original request, the changed files only, and the TRIVIAL path flag. |
 | Validator | Validates ONLY the changed files and their direct dependencies. Does not audit the full codebase. Returns PASS or FAIL. |
 
 ### Phase T3: DONE
@@ -236,7 +236,7 @@ Same as the Full Path Phase 6, with the same conditional DocWorm rules.
 
 | Agent | Phase(s) | Artifacts Owned | Responsibility |
 |-------|----------|-----------------|----------------|
-| Elon | All (gates every phase) | `.app/PROJECT.md` | Orchestration, routing, gates. Never implements, validates, or authors artifacts. |
+| Elon | All (gates every phase) | `.app/PROJECT.md` | Orchestration, routing, gates, and protocol artifact management. Never implements or validates. Creates and commits `.app/PROJECT.md` at REQUEST phase; commits protocol artifacts (REQ.md, RESEARCH.md, SPEC.md) at their phase gates. |
 | ReqGuru | GRILL | `.app/REQ.md` | Requirements gathering — grill-me interview, synthesizes requirements. |
 | DrPe | RESEARCH (conditional) | `.app/RESEARCH.md` | Technology landscape survey. Impact assessment. |
 | LeadDev | SPEC, DEVELOP, RESOLVE, T1 | `.app/SPEC.md` | Architecture, spec, implementation delegation, review, integration, commits, validation fixes. |
@@ -261,7 +261,7 @@ Same as the Full Path Phase 6, with the same conditional DocWorm rules.
 ### Rules
 
 - Every significant change gets its own commit. One logical unit per commit.
-- Protocol artifacts (`.app/REQ.md`, `.app/RESEARCH.md`, Spec, `.app/PROJECT.md`) are committed at their respective phase gates.
+- Protocol artifacts (`.app/REQ.md`, `.app/RESEARCH.md`, `.app/SPEC.md`, `.app/PROJECT.md`) are committed by Elon at their respective phase gates. (Agents that write these artifacts have no shell access; Elon owns the commit step.)
 - Fixup commits during RESOLVE are NOT squashed unless the user explicitly requests it. Each fix is traceable.
 - Merge strategy: squash-merge feature branches into main. Trivial fixes may be committed directly to main.
 - Conflict resolution: LeadDev's responsibility during integration. If conflicts arise between parallel MidDev tasks, LeadDev resolves before committing.
