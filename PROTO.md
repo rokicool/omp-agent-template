@@ -261,7 +261,7 @@ Same as the Full Path Phase 6, with the same conditional DocWorm rules.
 ### Rules
 
 - Every significant change gets its own commit. One logical unit per commit.
-- Protocol artifacts (`.app/REQ.md`, `.app/RESEARCH.md`, `.app/SPEC.md`, `.app/PROJECT.md`) are committed by Elon at their respective phase gates. (Agents that write these artifacts have no shell access; Elon owns the commit step.)
+- Protocol artifacts (`.app/REQ.md`, `.app/RESEARCH.md`, `.app/SPEC.md`, `.app/PROJECT.md`) are committed by Elon at their respective phase gates as a single owner for traceability. (Elon's `bash` access is scoped to these phase-gate commits; implementation commits remain LeadDev's responsibility.)
 - Fixup commits during RESOLVE are NOT squashed unless the user explicitly requests it. Each fix is traceable.
 - Merge strategy: squash-merge feature branches into main. Trivial fixes may be committed directly to main.
 - Conflict resolution: LeadDev's responsibility during integration. If conflicts arise between parallel MidDev tasks, LeadDev resolves before committing.
