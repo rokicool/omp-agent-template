@@ -2,9 +2,9 @@
 
 ## Overview
 
-Every feature or software request flows through gated phases. Each agent operates strictly within its role. Each agent is an executable skill at `.agents/skills/<name>/SKILL.md` — when the protocol says "Elon spawns X," it means `task(agent="task", context="skill://<agent-name>", assignment="...")`. The skill's full protocol (tool policy, boundaries, process) is injected into the subagent's context; each agent executes in its own isolated context window.
+Every feature or software request flows through gated phases. Each agent operates strictly within its role, **enforced at the harness level** (see [AGENTS.md](AGENTS.md) §Enforcement layers). Team agents are defined at `.omp/agents/<name>.md` with enforced `tools:` / `spawns:` frontmatter; their behavioral protocol lives in `.agents/skills/<name>/SKILL.md`. When the protocol says "Elon spawns X," it means `task(agent="<name>", context="skill://<name>", assignment="...")` — `agent` enforces the tool boundary, `context` injects the skill protocol, and each agent runs in its own isolated context window. The root session **is** Elon; he is never spawned.
 
-For agent definitions, tool policies, error recovery, and concurrency rules, see [AGENTS.md](AGENTS.md).
+**Enforcement note:** the root session's tool set is hard-restricted by the `enforce-orchestrator` extension (`.omp/extensions/`), and each team agent's tools/spawns are hard-restricted by its `.omp/agents/<name>.md` frontmatter. These are runtime blocks the model cannot override. For agent definitions, tool policies, error recovery, and concurrency rules, see [AGENTS.md](AGENTS.md). Escape hatch: `OMP_BYPASS_ORCHESTRATOR=1`.
 
 ---
 
@@ -270,4 +270,4 @@ Same as the Full Path Phase 6, with the same conditional DocWorm rules.
 
 ## Harness Precedence
 
-The harness system prompt is the authoritative runtime directive. When PROTO.md rules conflict with the system prompt, the system prompt takes precedence.
+The enforcement mechanisms in [AGENTS.md](AGENTS.md) (the `enforce-orchestrator` extension and agent-definition `tools:` / `spawns:` frontmatter) are harness-level runtime restrictions — a blocked tool throws, and the model cannot override that by reading the system prompt differently. Prompt-level layers (`RULES.md`, `APPEND_SYSTEM.md`, `AGENTS.md`, this file) are advisory and reinforce the enforced invariants.
