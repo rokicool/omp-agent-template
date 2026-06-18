@@ -3,3 +3,4 @@ __pycache__/
 .app/
 node_modules/
 *.tgz
+.next/
