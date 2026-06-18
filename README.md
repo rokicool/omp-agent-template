@@ -16,8 +16,14 @@ only way to ship agent definitions) — this repo publishes **both from one tree
 
 ## Install
 
+> **Plugin A requires [bun](https://bun.sh).** It is a TypeScript
+> extension-package, and `omp` resolves its dependencies with `bun install`. The
+> default `omp` installer (binary mode) does **not** install bun — get it with
+> `curl -fsSL https://bun.sh/install | bash`, or install `omp` itself with
+> `--source` (which installs bun as a side effect). Plugin B needs only `omp`.
+
 ```bash
-# 1. Plugin A — the gate + rule. Installs user-wide.
+# 1. Plugin A — the gate + rule. Installs user-wide. (requires bun — see above)
 omp plugin install github:<owner>/omp-agent-template
 # local dev:
 omp plugin link ./omp-agent-template
@@ -78,8 +84,14 @@ scaffold/{AGENTS,PROTO,APPEND_SYSTEM,RULES}.md  # advisory docs (init-time copy)
   to the LLM). The extension re-injects the framing via `sendMessage` (`display:false`,
   queued for the next turn). Do not rely on the prompt alone — the gate enforces the
   contract.
+- **Plugin A install requires bun.** `omp plugin install` of an extension-package
+  runs `bun install` to resolve `package.json` deps, and the omp binary installer
+  ships no bun — so on a default clean install Plugin A fails with
+  `Executable not found in $PATH: "bun"` until bun is present. Plugin B (agents +
+  skills, pure markdown) is unaffected. Verified in a clean container; see the
+  note under [Install](#install).
 - **`skill://elon` cross-provider resolution** is design-confirmed (skills feed one unified
   registry queried by name) but not runtime-verified here.
-- Targeted at `@oh-my-pi/pi-coding-agent` 16.0.x (checked against 16.0.5).
+- Targeted at `@oh-my-pi/pi-coding-agent` 16.0.x (checked against 16.0.5; install path re-verified against 16.0.8).
 - Plugin code executes **in-process, unsandboxed** when loaded — install only from sources
   you trust. MIT license.
