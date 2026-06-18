@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "omp-agent-template",
+  "owner": { "name": "omp-agent-template" },
+  "metadata": {
+    "description": "Elon multi-agent orchestrator roster + skills for oh-my-pi.",
+    "version": "1.0.0",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "orchestrator-agents",
+      "description": "7-agent orchestrator roster + 8 skills.",
+      "source": "./agents",
+      "category": "development",
+      "version": "1.0.0",
+      "agents": ["hr", "docworm", "drpe", "leaddev", "middev", "reqguru", "validator"],
+      "homepage": "https://github.com/omp-agent-template/omp-agent-template"
+    }
+  ]
+}

@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 .app/
+node_modules/
+*.tgz
+.next/
