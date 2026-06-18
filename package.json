@@ -1,0 +1,19 @@
+{
+  "name": "omp-agent-gate",
+  "version": "1.0.0",
+  "description": "Elon orchestrator enforcement gate + Definition-of-Done rule for oh-my-pi.",
+  "license": "MIT",
+  "type": "module",
+  "files": ["src", "rules"],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@oh-my-pi/pi-coding-agent": "^16.0.5",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "omp": {
+    "extensions": ["./src/enforce-orchestrator.ts"]
+  }
+}
