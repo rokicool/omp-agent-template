@@ -60,6 +60,15 @@ else
   ok "bun installed ($(bun --version))"
 fi
 
+# When no explicit OMP_AGENT_REF pin is given, resolve the LATEST release tag at
+# runtime (git ls-remote sorts tags by version, newest first) so this script
+# always installs the newest version and never goes stale on the next release.
+if [ -z "${REF}" ]; then
+  REF="$(git ls-remote --tags --sort=-v:refname "https://github.com/${REPO}.git" \
+        | awk -F/ '/refs\/tags\// && !/\^\{\}/ {print $3; exit}')" \
+    || die "could not query tags for ${REPO} — set OMP_AGENT_REF=<tag>"
+  [ -n "${REF}" ] || die "no tags found for ${REPO} — set OMP_AGENT_REF=<tag>"
+fi
 GH_A="github:${REPO}${REF:+@$REF}"       # Plugin A source (optionally pinned)
 
 # ── marketplace registration (idempotent — `marketplace add` errors if dup) ──
