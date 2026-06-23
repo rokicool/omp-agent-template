@@ -51,7 +51,7 @@ omp plugin link ./omp-agent-template
 omp plugin marketplace add <owner>/omp-agent-template
 omp plugin install orchestrator-agents@omp-agent-template
 
-# 3. (optional) drop the advisory scaffold docs into your project root.
+# 3. (optional) drop advisory scaffold docs into your project root (local overrides/references; the live protocol already ships via `skill://elon` in Plugin B — no copy needed for the orchestrator to function).
 cp -r omp-agent-template/scaffold/. .
 #   → AGENTS.md, PROTO.md, APPEND_SYSTEM.md, RULES.md
 ```
@@ -81,6 +81,13 @@ their own agent frontmatter.
 so Plugin A's extension **re-injects** it at `session_start` as an advisory session message.
 A project-local `<cwd>/.omp/APPEND_SYSTEM.md` overrides the bundled default. This is
 advisory only — the hard enforcement is the gate + agent frontmatter, not the prompt.
+
+The framing points Elon at `skill://elon` (shipped by Plugin B) for the full protocol — it
+does **not** require `AGENTS.md`/`PROTO.md` in the project. Those scaffold docs are optional
+local references/overrides; the one-liner installer needs no extra copy step for the
+orchestrator to work. If Elon nonetheless tries to `read ./AGENTS.md` or `./PROTO.md` and
+fails, you are on a stale build of the plugin — reinstall Plugin A (`omp plugin install
+github:<owner>/omp-agent-template --force`).
 
 ## Layout
 
@@ -143,8 +150,10 @@ omp plugin install github:<owner>/omp-agent-template@v1.0.0
   `Executable not found in $PATH: "bun"` until bun is present. Plugin B (agents +
   skills, pure markdown) is unaffected. Verified in a clean container; see the
   note under [Install](#install).
-- **`skill://elon` cross-provider resolution** is design-confirmed (skills feed one unified
-  registry queried by name) but not runtime-verified here.
+- **`skill://elon` is Elon's primary protocol source** (shipped by Plugin B; structural
+  resolution confirmed by `scripts/validate-plugins.sh`). Live-session resolution still
+  depends on the omp skills provider scanning the plugin's `skills/` tree; if a session ever
+  fails to resolve it, the bundled APPEND_SYSTEM framing above is sufficient for Elon to route.
 - Targeted at `@oh-my-pi/pi-coding-agent` 16.0.x (checked against 16.0.5; install path re-verified against 16.0.8).
 - Plugin code executes **in-process, unsandboxed** when loaded — install only from sources
   you trust. MIT license.
