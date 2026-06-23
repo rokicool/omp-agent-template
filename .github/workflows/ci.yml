@@ -1,0 +1,81 @@
+# CI — validate both oh-my-pi plugins on every push and pull request.
+#
+# This repo ships TWO omp plugins from one tree:
+#   Plugin A  omp-agent-gate        extension-package  (package.json#omp.extensions, TS)
+#   Plugin B  orchestrator-agents   marketplace        (.omp-plugin/marketplace.json, markdown)
+#
+# The gate has three layers:
+#   1. typecheck      Plugin A TypeScript compiles (tsc --noEmit)
+#   2. validate       structural integrity of both trees (scripts/validate-plugins.sh)
+#   3. omp smoke-test install both plugins through the real `omp` binary
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate plugins (typecheck + structure + omp install)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Toolchain: node+npm for the deterministic typecheck (repo ships
+      # package-lock.json); bun because `omp plugin install` of an
+      # extension-package resolves deps with `bun install`.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install deps (npm ci)
+        run: npm ci
+
+      # Layer 1 — Plugin A TypeScript.
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck
+
+      # Layer 2 — structural integrity of both plugins (bash + jq, no deps).
+      - name: Validate plugin structure
+        run: bash scripts/validate-plugins.sh
+
+      # Layer 3 — prove omp itself accepts both trees. Install the omp binary
+      # (no bun needed for omp itself), then exercise the real install paths.
+      - name: Install omp (binary)
+        run: |
+          curl -fsSL https://omp.sh/install | sh -s -- --binary
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: omp version
+        run: omp --version
+
+      # Plugin B is pure markdown — installs without bun. Add the local
+      # marketplace (note the required "./" prefix), install, assert it
+      # registered, then clean up (the runner is ephemeral, cleanup is hygiene).
+      - name: Smoke-test Plugin B (marketplace, markdown)
+        run: |
+          omp plugin marketplace add ./
+          omp plugin install orchestrator-agents@omp-agent-template
+          omp plugin list --json | jq -e '.marketplace | length > 0' >/dev/null
+          omp plugin uninstall orchestrator-agents@omp-agent-template || true
+          omp plugin marketplace remove omp-agent-template || true
+
+      # Plugin A is a TypeScript extension-package — its install runs
+      # `bun install`, so bun must be present. Dry-run first, then a real
+      # install to exercise dep resolution + extension registration.
+      - name: Smoke-test Plugin A (extension-package, bun)
+        run: |
+          omp plugin install . --dry-run
+          omp plugin install .
+          omp plugin list --json | jq -e '.npm | length > 0' >/dev/null
+          omp plugin uninstall omp-agent-gate || true

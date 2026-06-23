@@ -74,6 +74,39 @@ rules/ro-definition-of-done.md    # Plugin A rule (alwaysApply)
 plugins/agents/agents/*.md        # 7 agent definitions (Plugin B)
 plugins/agents/skills/*/SKILL.md  # 8 skills (Plugin B, co-located)
 scaffold/{AGENTS,PROTO,APPEND_SYSTEM,RULES}.md  # advisory docs (init-time copy)
+scripts/validate-plugins.sh        # structural validation (CI + release gate)
+.github/workflows/ci.yml           # typecheck + validate + omp install smoke-test
+.github/workflows/release.yml      # tag -> artifacts + GitHub Release
+```
+
+## Releases & CI
+
+Two GitHub Actions workflows gate and ship both plugins.
+
+- **CI** (`.github/workflows/ci.yml`) runs on every push/PR: `tsc --noEmit`
+  (Plugin A), `scripts/validate-plugins.sh` (manifest shape + agent/skill
+  coverage for both), then installs both through the real `omp` binary as a
+  smoke test.
+- **Release** (`.github/workflows/release.yml`) fires on a `v*` tag. After the
+  same typecheck + validation gate (and an assertion that the tag matches
+  `package.json#version`), it publishes a GitHub Release with two consumable
+  archives:
+
+| Artifact | Plugin | Local install |
+|---|---|---|
+| `omp-agent-gate-<ver>.tgz` | A — extension-package (`npm pack`, honors `files`) | `omp plugin install ./omp-agent-gate-<ver>.tgz` |
+| `orchestrator-agents-<ver>.tar.gz` | B — self-contained marketplace (`.omp-plugin/` + `plugins/`) | extract, then `omp plugin marketplace add ./<dir>` |
+
+omp consumes plugins straight from git, so **the tag itself is the distribution
+pin** — the attached archives are for offline/pinned/local installs, and the
+release notes carry the exact install commands for that version.
+
+```bash
+# cut a release (version must match package.json#version)
+git tag v1.0.0 && git push origin v1.0.0
+
+# install a pinned version straight from the tag
+omp plugin install github:<owner>/omp-agent-template@v1.0.0
 ```
 
 ## Caveats (verification)
