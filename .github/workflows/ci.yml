@@ -79,3 +79,55 @@ jobs:
           omp plugin install .
           omp plugin list --json | jq -e '.npm | length > 0' >/dev/null
           omp plugin uninstall omp-agent-gate || true
+
+  # Regression guard for the one-liner installer. Runs the repo's OWN checked-out
+  # elon_ko.sh (NOT a hand-written install) with Plugin A pinned to the commit
+  # under test. If elon_ko.sh's github-ref delimiter regresses from '#' back to
+  # '@', the pinned source becomes github:owner/repo@<sha> -> omp fetches
+  # api.github.com/repos//<sha>/tarball/ -> 404 -> elon_ko.sh dies -> job fails.
+  # A hand-written '#' install could NOT catch that revert; only executing
+  # elon_ko.sh itself can. elon_ko.sh bootstraps omp + bun itself, so (unlike
+  # `validate`) no node/bun setup is needed here.
+  installer-one-liner:
+    name: One-liner installer smoke (elon_ko.sh)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ubuntu-latest ships curl, git, unzip, ca-certificates — the only
+      # prerequisites elon_ko.sh needs (it installs omp + bun itself).
+      - name: Ensure prerequisites
+        run: |
+          for b in curl git unzip; do command -v "$b" >/dev/null || { echo "::error::missing $b"; exit 1; }; done
+
+      # Execute the CHECKED-OUT installer with Plugin A pinned to THIS commit,
+      # so we test the code under review, not the latest release tag.
+      - name: Run elon_ko.sh (Plugin A pinned to this commit)
+        env:
+          OMP_AGENT_REF: ${{ github.sha }}
+        run: |
+          bash ./elon_ko.sh
+          # elon_ko.sh installs omp/bun under these dirs; expose them to later steps.
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+
+      - name: omp version
+        run: omp --version
+
+      # elon_ko.sh's own `set -e`/`die` already fails the prior step on any
+      # install error; this confirms BOTH plugins actually registered, with
+      # Plugin A at the version pinned by this commit's package.json.
+      - name: Assert both plugins installed
+        run: |
+          set -euo pipefail
+          expected="$(jq -r .version package.json)"
+          echo "expected omp-agent-gate version: ${expected}"
+          json="$(omp plugin list --json)"
+          echo "$json" | jq -e --arg v "$expected" \
+            '.npm | map(select(.name == "omp-agent-gate" and .version == $v)) | length >= 1' \
+            || { echo "::error::omp-agent-gate@${expected} not installed"; exit 1; }
+          echo "  ok: omp-agent-gate@${expected} installed"
+          echo "$json" | jq -e \
+            '.marketplace | map(select(.id == "orchestrator-agents@omp-agent-template")) | length >= 1' \
+            || { echo "::error::orchestrator-agents not installed"; exit 1; }
+          echo "  ok: orchestrator-agents installed"
