@@ -121,7 +121,7 @@ Two GitHub Actions workflows gate and ship both plugins.
 
 | Artifact | Plugin | Local install |
 |---|---|---|
-| `omp-agent-gate-<ver>.tgz` | A — extension-package (`npm pack`, honors `files`) | `omp plugin install ./omp-agent-gate-<ver>.tgz` |
+| `omp-agent-gate-<ver>.tgz` | A — extension-package (`npm pack`, honors `files`) | extract, then `omp plugin install ./package` |
 | `orchestrator-agents-<ver>.tar.gz` | B — self-contained marketplace (`.omp-plugin/` + `plugins/`) | extract, then `omp plugin marketplace add ./<dir>` |
 
 omp consumes plugins straight from git, so **the tag itself is the distribution
@@ -133,7 +133,7 @@ release notes carry the exact install commands for that version.
 git tag v1.2.0 && git push origin v1.2.0
 
 # install a pinned version straight from the tag
-omp plugin install github:<owner>/omp-agent-template@v1.2.0
+omp plugin install github:<owner>/omp-agent-template#v1.2.0
 ```
 
 ## Caveats (verification)

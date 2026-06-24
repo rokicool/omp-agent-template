@@ -69,7 +69,7 @@ if [ -z "${REF}" ]; then
     || die "could not query tags for ${REPO} — set OMP_AGENT_REF=<tag>"
   [ -n "${REF}" ] || die "no tags found for ${REPO} — set OMP_AGENT_REF=<tag>"
 fi
-GH_A="github:${REPO}${REF:+@$REF}"       # Plugin A source (optionally pinned)
+GH_A="github:${REPO}${REF:+#$REF}"       # Plugin A source (optionally pinned)
 
 # ── marketplace registration (idempotent — `marketplace add` errors if dup) ──
 say "Registering marketplace '${MARKETPLACE}'"
