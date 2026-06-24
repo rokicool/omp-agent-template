@@ -12,7 +12,7 @@
 # Pin Plugin A to a tag/branch. Plugin B (the agents) always installs LATEST —
 # the script refreshes the marketplace catalog every run, because omp
 # marketplaces cannot be ref-pinned (they track the repo's default branch).
-#   curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.2.1 bash
+#   curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.2.2 bash
 #
 # Re-running is safe — every step is idempotent.
 set -euo pipefail
@@ -20,7 +20,7 @@ set -euo pipefail
 REPO="rokicool/omp-agent-template"
 MARKETPLACE="omp-agent-template"        # value of marketplace.json#name
 PLUGIN_B="orchestrator-agents"
-REF="${OMP_AGENT_REF:-}"                # optional tag/branch pin for Plugin A
+REF="${OMP_AGENT_REF:-v1.2.2}"        # static tag: avoids store ref-drift + network deps; OMP_AGENT_REF overrides for dev
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
@@ -60,16 +60,7 @@ else
   ok "bun installed ($(bun --version))"
 fi
 
-# When no explicit OMP_AGENT_REF pin is given, resolve the LATEST release tag at
-# runtime (git ls-remote sorts tags by version, newest first) so this script
-# always installs the newest version and never goes stale on the next release.
-if [ -z "${REF}" ]; then
-  REF="$(git ls-remote --tags --sort=-v:refname "https://github.com/${REPO}.git" \
-        | awk -F/ '/refs\/tags\// && !/\^\{\}/ {print $3; exit}')" \
-    || die "could not query tags for ${REPO} — set OMP_AGENT_REF=<tag>"
-  [ -n "${REF}" ] || die "no tags found for ${REPO} — set OMP_AGENT_REF=<tag>"
-fi
-GH_A="github:${REPO}${REF:+#$REF}"       # Plugin A source (optionally pinned)
+GH_A="github:${REPO}${REF:+#$REF}"       # Plugin A source (always pinned to REF)
 
 # ── marketplace registration (idempotent — `marketplace add` errors if dup) ──
 say "Registering marketplace '${MARKETPLACE}'"
