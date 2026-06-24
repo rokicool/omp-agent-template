@@ -11,7 +11,7 @@ only way to ship agent definitions) — this repo publishes **both from one tree
 
 | Plugin | Mechanism | Provides | Install |
 |---|---|---|---|
-| **`omp-agent-gate`** (Plugin A) | extension-package (`package.json#omp.extensions`) | the `tool_call` enforcement gate + the Definition-of-Done rule | `omp plugin install github:<owner>/omp-agent-template` |
+| **`omp-agent-gate`** (Plugin A) | extension-package (`package.json#omp.extensions`) | the `tool_call` enforcement gate + the Definition-of-Done rule | `omp plugin install github:<owner>/omp-agent-template#<tag>` |
 | **`orchestrator-agents`** (Plugin B) | marketplace (`.omp-plugin/marketplace.json`) | 7 agent definitions + 8 skills | `omp plugin marketplace add <owner>/omp-agent-template` then `omp plugin install orchestrator-agents@omp-agent-template` |
 
 
@@ -43,7 +43,8 @@ See [`elon_ko.sh`](./elon_ko.sh) for exactly what it does. For the manual step-b
 
 ```bash
 # 1. Plugin A — the gate + rule. Installs user-wide. (requires bun — see above)
-omp plugin install github:<owner>/omp-agent-template
+#    Pin to a release tag. Switching the ref later needs `omp plugin uninstall omp-agent-gate` first.
+omp plugin install github:<owner>/omp-agent-template#v1.2.1
 # local dev:
 omp plugin link ./omp-agent-template
 
@@ -86,8 +87,9 @@ The framing points Elon at `skill://elon` (shipped by Plugin B) for the full pro
 does **not** require `AGENTS.md`/`PROTO.md` in the project. Those scaffold docs are optional
 local references/overrides; the one-liner installer needs no extra copy step for the
 orchestrator to work. If Elon nonetheless tries to `read ./AGENTS.md` or `./PROTO.md` and
-fails, you are on a stale build of the plugin — reinstall Plugin A (`omp plugin install
-github:<owner>/omp-agent-template --force`).
+fails, you are on a stale build of the plugin — reinstall Plugin A **pinned**, uninstalling
+first so the changed ref doesn't trip a `DependencyLoop`:
+`omp plugin uninstall omp-agent-gate && omp plugin install github:<owner>/omp-agent-template#v1.2.1`.
 
 ## Layout
 

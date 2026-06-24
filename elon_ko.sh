@@ -90,8 +90,15 @@ else
   warn "marketplace refresh failed — continuing with the cached catalog"
 fi
 
-# ── Plugin A: omp-agent-gate (extension-package; --force = idempotent) ───────
+# ── Plugin A: omp-agent-gate (extension-package) ─────────────────────────────
+# omp resolves Plugin A as a git-sourced dep whose key (`omp-agent-gate`) equals
+# the package name this repo provides. If a DIFFERENT ref is already locked in
+# ~/.omp/plugins/ (a prior version, a bare/floating ref, or main-HEAD vs the
+# pinned tag), `bun install` aborts with `DependencyLoop`. `--force` alone does
+# NOT clear that stale resolution, so uninstall first — a no-op on a clean
+# machine — then install the pinned ref so every run/upgrade resolves cleanly.
 say "Installing Plugin A: omp-agent-gate"
+omp plugin uninstall omp-agent-gate >/dev/null 2>&1 || true
 omp plugin install "${GH_A}" --force || die "Plugin A install failed"
 ok "omp-agent-gate installed (${GH_A})"
 
