@@ -12,7 +12,7 @@
 # Pin Plugin A to a tag/branch. Plugin B (the agents) always installs LATEST —
 # the script refreshes the marketplace catalog every run, because omp
 # marketplaces cannot be ref-pinned (they track the repo's default branch).
-#   curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.1.0 bash
+#   curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.2.0 bash
 #
 # Re-running is safe — every step is idempotent.
 set -euo pipefail

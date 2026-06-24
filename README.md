@@ -28,7 +28,7 @@ Pin Plugin A to a release tag with `OMP_AGENT_REF` (the Plugin B marketplace alw
 latest), and re-run safely — every step is idempotent:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.1.0 bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.2.0 bash
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it does. For the manual step-by-step, see [Install](#install) below.
@@ -130,10 +130,10 @@ release notes carry the exact install commands for that version.
 
 ```bash
 # cut a release (version must match package.json#version)
-git tag v1.1.0 && git push origin v1.1.0
+git tag v1.2.0 && git push origin v1.2.0
 
 # install a pinned version straight from the tag
-omp plugin install github:<owner>/omp-agent-template@v1.1.0
+omp plugin install github:<owner>/omp-agent-template@v1.2.0
 ```
 
 ## Caveats (verification)
