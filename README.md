@@ -91,6 +91,75 @@ fails, you are on a stale build of the plugin — reinstall Plugin A **pinned**,
 first so the changed ref doesn't trip a `DependencyLoop`:
 `omp plugin uninstall omp-agent-gate && omp plugin install github:<owner>/omp-agent-template#v1.2.1`.
 
+## Subagent live tabs
+
+When the orchestrator delegates work to subagents, `subagent-tabs` opens **one native
+supaterm tab per subagent** and streams its live activity — so you can watch several
+agents work in parallel without losing the main thread. It ships with Plugin A
+(`omp-agent-gate`) and is **on by default** wherever that plugin is installed.
+
+### What you see
+
+- A tab opens the instant a subagent actually **starts** (not while it merely waits in
+  the queue), labeled `<agentId> · <role>`.
+- The tab streams the agent's live transcript in color: assistant message text, tool
+  calls (`▸ tool …` on entry, `◂ tool ✓` / `✗` on exit — green / red), color-coded
+  notices (`error` / `warning` / `info`), and a `💬 irc` indicator on inter-agent
+  messages.
+- The tab **survives the subagent's end** for review — completed/failed runs are
+  relabeled `[ended] …`, a cancelled run `[ABORTED] …`. Tabs are never auto-closed on
+  agent end; they close only when the parent omp session shuts down (or when you close
+  one yourself).
+
+> The interactive collapsible widgets live only in omp's `history://<agentId>` view.
+> The tab carries their **color and status**, not the collapsible chrome — open
+> `history://<agentId>` for the full interactive transcript.
+
+### Enable / disable / tune
+
+All knobs are environment variables, read once at session start:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `OMP_SUBAGENT_TABS` | enabled | Master switch. `0` or `false` (case-insensitive) disables it; unset or any other value leaves it on. |
+| `OMP_SUBAGENT_TABS_RENDER` | `rich` | `rich` streams ANSI color into the tab; `plain` strips it to plain text. |
+| `OMP_SUBAGENT_TABS_QUIET_MS` | `30000` | Milliseconds with no activity before a running tab is marked `quiet`. Must be `> 0`, else the default applies. |
+| `OMP_SUBAGENT_TABS_HOLDER` | `stty -echo 2>/dev/null; cat` | No-echo holder process the tab runs, so streamed bytes render verbatim instead of executing. |
+
+```bash
+# disable for a session
+OMP_SUBAGENT_TABS=0 omp
+
+# plain text, 10 s quiet threshold
+OMP_SUBAGENT_TABS_RENDER=plain OMP_SUBAGENT_TABS_QUIET_MS=10000 omp
+```
+
+### Terminal backend (supaterm, with tmux fallback)
+
+At startup the extension probes once for a usable backend and keeps it for the session:
+
+1. **supaterm** (primary) — native tabs over the `sp` socket; this is what gives you the
+   labeled top-bar tabs.
+2. **tmux** (fallback) — if the supaterm socket is unreachable, it relays into a detached
+   `omp-agents` tmux session, one window per subagent.
+3. If neither is available, the relay disables itself and logs a notice — your omp
+   session is otherwise unaffected.
+
+### Caveats
+
+- **The backend is chosen once, at startup.** If the supaterm socket dies
+  *mid-session*, the relay degrades silently (updates stop) rather than switching to
+  tmux — it does not crash. Restart the session to re-probe.
+- **No phantom tabs for queued agents.** A tab appears only when a subagent is admitted
+  and starts; agents waiting on the concurrency limit get none until they begin.
+- **Read-only.** The tab is a live view with no free-text injection. Stop/cancel still
+  works through omp's normal job-cancel.
+
+### Verify it live
+
+Open supaterm, run an omp session that spawns 2–4 subagents (for example, an Elon
+pipeline), and a tab appears per agent with streaming, colored activity.
+
 ## Layout
 
 ```
