@@ -90,7 +90,7 @@ jobs:
 
             ```bash
             # tag-pinned (this release)
-            omp plugin install github:${{ github.repository }}@${{ github.ref_name }}
+            omp plugin install github:${{ github.repository }}#${{ github.ref_name }}
             # default branch
             omp plugin install github:${{ github.repository }}
             ```
