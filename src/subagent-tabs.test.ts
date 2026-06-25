@@ -34,6 +34,8 @@ import {
   readJsonlFromByte,
   selectBackend,
 } from "./subagent-tabs.ts";
+// ANSI SGR strip helper for rich-mode assertions (no dependency).
+const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
 
 // ---------------------------------------------------------------------------
 // 1. TabRegistry
@@ -165,51 +167,121 @@ test("deriveTabStatus: terminal lifecycle > progress > quiet > running", () => {
 // 6. renderAgentSessionEvent
 // ---------------------------------------------------------------------------
 
-test("renderAgentSessionEvent: messages, tools, notice, irc, unknown", () => {
-  // message_end with text (multiple text blocks summed)
-  const msg = {
-    type: "message_end",
-    message: { content: [{ type: "text", text: "hello " }, { type: "text", text: "world" }] },
-  };
-  equal(renderAgentSessionEvent(msg), "hello world");
+test("renderAgentSessionEvent: plain byte-identical + rich ANSI codes", () => {
+  // ---- PLAIN mode (renderMode: "plain") — regression guard: today's exact outputs ----
+  const plain = { renderMode: "plain" as const };
 
-  // message_update with text
+  // message_end multi-block → "hello world"
   equal(
-    renderAgentSessionEvent({ type: "message_update", message: { content: [{ type: "text", text: "x" }] } }),
+    renderAgentSessionEvent(
+      { type: "message_end", message: { content: [{ type: "text", text: "hello " }, { type: "text", text: "world" }] } },
+      plain,
+    ),
+    "hello world",
+  );
+  // message_update with text → "x"
+  equal(
+    renderAgentSessionEvent({ type: "message_update", message: { content: [{ type: "text", text: "x" }] } }, plain),
     "x",
   );
-
-  // message_end with no text → undefined
+  // message_end no-text → undefined; no-message → undefined
   equal(
-    renderAgentSessionEvent({ type: "message_end", message: { content: [{ type: "tool_use", id: "1" }] } }),
+    renderAgentSessionEvent({ type: "message_end", message: { content: [{ type: "tool_use", id: "1" }] } }, plain),
     undefined,
   );
-  // message_end with no message → undefined
-  equal(renderAgentSessionEvent({ type: "message_end" }), undefined);
-
-  // tool_execution_start → prefixed line (+ short args hint)
+  equal(renderAgentSessionEvent({ type: "message_end" }, plain), undefined);
+  // tool_execution_start with args → exactly '▸ read {"path":"x"}'
   equal(
-    renderAgentSessionEvent({ type: "tool_execution_start", toolName: "read", args: { path: "x" } }),
+    renderAgentSessionEvent({ type: "tool_execution_start", toolName: "read", args: { path: "x" } }, plain),
     '▸ read {"path":"x"}',
   );
-  equal(renderAgentSessionEvent({ type: "tool_execution_start", toolName: "read" }), "▸ read");
-  // capped ~60 chars
-  const longLine = renderAgentSessionEvent({ type: "tool_execution_start", toolName: "x", args: "a".repeat(100) });
-  ok(longLine !== undefined && longLine.length <= 60, `args hint capped to <=60 (got ${longLine?.length})`);
+  // tool_execution_start no args → '▸ read'
+  equal(renderAgentSessionEvent({ type: "tool_execution_start", toolName: "read" }, plain), "▸ read");
+  // tool_execution_end success → '◂ write ✓'; error → '◂ write ✗'
+  equal(renderAgentSessionEvent({ type: "tool_execution_end", toolName: "write", isError: false }, plain), "◂ write ✓");
+  equal(renderAgentSessionEvent({ type: "tool_execution_end", toolName: "write", isError: true }, plain), "◂ write ✗");
+  // notice → 'warning: careful'
+  equal(renderAgentSessionEvent({ type: "notice", level: "warning", message: "careful" }, plain), "warning: careful");
+  // irc_message → '💬 irc'
+  equal(renderAgentSessionEvent({ type: "irc_message", message: {} }, plain), "💬 irc");
+  // unknown type → undefined
+  equal(renderAgentSessionEvent({ type: "auto_compaction_start" }, plain), undefined);
+  equal(renderAgentSessionEvent({ type: "something_new" }, plain), undefined);
 
-  // tool_execution_end → prefixed line with ✓/✗
-  equal(renderAgentSessionEvent({ type: "tool_execution_end", toolName: "write", isError: false }), "◂ write ✓");
-  equal(renderAgentSessionEvent({ type: "tool_execution_end", toolName: "write", isError: true }), "◂ write ✗");
+  // ---- RICH mode (default = no opts; also asserted via explicit { renderMode: "rich" }) ----
+  const rich = { renderMode: "rich" as const };
 
-  // notice → `${level}: ${message}`
-  equal(renderAgentSessionEvent({ type: "notice", level: "warning", message: "careful" }), "warning: careful");
-
-  // irc_message → fixed marker
-  equal(renderAgentSessionEvent({ type: "irc_message", message: {} }), "💬 irc");
-
+  // message_end → exactly "hello world", NO ANSI (assistant text never colorized)
+  {
+    const out = renderAgentSessionEvent({
+      type: "message_end",
+      message: { content: [{ type: "text", text: "hello " }, { type: "text", text: "world" }] },
+    });
+    equal(out, "hello world");
+    ok(out !== undefined && !out.includes("\x1b"), "rich message_end must not contain ANSI escapes");
+    // explicit rich opt reproduces the default
+    equal(
+      renderAgentSessionEvent(
+        { type: "message_end", message: { content: [{ type: "text", text: "hello " }, { type: "text", text: "world" }] } },
+        rich,
+      ),
+      "hello world",
+    );
+  }
+  // tool_execution_start (no args): starts DIM, CYAN before name, ends RESET
+  {
+    const out = renderAgentSessionEvent({ type: "tool_execution_start", toolName: "read" });
+    ok(out !== undefined, "rich tool_execution_start produced output");
+    ok(out!.startsWith("\x1b[2m"), `starts with DIM (got ${JSON.stringify(out)})`);
+    ok(out!.includes("\x1b[36mread"), `contains CYAN before name (got ${JSON.stringify(out)})`);
+    ok(out!.endsWith("\x1b[0m"), `ends with RESET (got ${JSON.stringify(out)})`);
+    equal(stripAnsi(out!), "▸ read");
+  }
+  // tool_execution_start with args: stripped equals '▸ read {"path":"x"}'
+  {
+    const out = renderAgentSessionEvent({ type: "tool_execution_start", toolName: "read", args: { path: "x" } }, rich);
+    equal(stripAnsi(out!), '▸ read {"path":"x"}');
+  }
+  // tool_execution_end success: GREEN + ✓
+  {
+    const out = renderAgentSessionEvent({ type: "tool_execution_end", toolName: "write", isError: false });
+    ok(out!.includes("\x1b[32m"), `contains GREEN (got ${JSON.stringify(out)})`);
+    ok(out!.includes("✓"), `contains ✓ (got ${JSON.stringify(out)})`);
+    equal(stripAnsi(out!), "◂ write ✓");
+  }
+  // tool_execution_end error: RED + ✗
+  {
+    const out = renderAgentSessionEvent({ type: "tool_execution_end", toolName: "write", isError: true });
+    ok(out!.includes("\x1b[31m"), `contains RED (got ${JSON.stringify(out)})`);
+    ok(out!.includes("✗"), `contains ✗ (got ${JSON.stringify(out)})`);
+    equal(stripAnsi(out!), "◂ write ✗");
+  }
+  // notice warning: YELLOW
+  {
+    const out = renderAgentSessionEvent({ type: "notice", level: "warning", message: "careful" });
+    ok(out!.includes("\x1b[33m"), `contains YELLOW (got ${JSON.stringify(out)})`);
+    equal(stripAnsi(out!), "warning: careful");
+  }
+  // notice error level: RED
+  {
+    const out = renderAgentSessionEvent({ type: "notice", level: "error", message: "boom" });
+    ok(out!.includes("\x1b[31m"), `contains RED (got ${JSON.stringify(out)})`);
+    equal(stripAnsi(out!), "error: boom");
+  }
+  // irc_message → exactly magenta marker
+  equal(renderAgentSessionEvent({ type: "irc_message", message: {} }), "\x1b[35m💬 irc\x1b[0m");
   // unknown type → undefined
   equal(renderAgentSessionEvent({ type: "auto_compaction_start" }), undefined);
-  equal(renderAgentSessionEvent({ type: "something_new" }), undefined);
+  // 60-char cap in RICH: ANSI-STRIPPED length ≤ 60 (escape bytes don't count)
+  {
+    const out = renderAgentSessionEvent({ type: "tool_execution_start", toolName: "x", args: "a".repeat(100) });
+    ok(out !== undefined, "rich long-args produced output");
+    const stripped = stripAnsi(out!);
+    ok(
+      stripped.length <= 60,
+      `rich tool_execution_start stripped ≤ 60 (got ${stripped.length}: ${JSON.stringify(stripped)})`,
+    );
+  }
 });
 
 // ---------------------------------------------------------------------------

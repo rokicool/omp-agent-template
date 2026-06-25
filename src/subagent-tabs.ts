@@ -26,6 +26,25 @@ const DEFAULT_QUIET_MS = 30_000;
 const NOTIFY_TITLE = "Subagent";
 
 // ---------------------------------------------------------------------------
+// PURE — ANSI SGR helpers (cosmetic; always reset at line end)
+// ---------------------------------------------------------------------------
+
+const SGR = {
+  RESET: "\x1b[0m",
+  DIM: "\x1b[2m",
+  CYAN: "\x1b[36m",
+  GREEN: "\x1b[32m",
+  RED: "\x1b[31m",
+  YELLOW: "\x1b[33m",
+  MAGENTA: "\x1b[35m",
+} as const;
+
+/** Wrap `text` in `open` ... `text` ... RESET. Pure string build; never throws. */
+function sgr(open: string, text: string): string {
+  return `${open}${text}${SGR.RESET}`;
+}
+
+// ---------------------------------------------------------------------------
 // Exported types
 // ---------------------------------------------------------------------------
 
@@ -51,7 +70,7 @@ export interface RelayConfig {
   enabled: boolean; // master switch (default: true)
   holderCommand: string; // default "stty -echo 2>/dev/null; cat"
   quietAfterMs: number; // default 30000 — no event for this long ⇒ "quiet"
-  renderMode: "plain"; // v1: plain only (rich TUI renderer reuse is out of scope)
+  renderMode: "rich" | "plain"; // rich = emit ANSI color in the streamed pane (default rich)
 }
 
 export interface RelayExecResult {
@@ -273,7 +292,11 @@ function argsHint(args: unknown): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-export function renderAgentSessionEvent(event: { type: string; [k: string]: unknown }): string | undefined {
+export function renderAgentSessionEvent(
+  event: { type: string; [k: string]: unknown },
+  opts?: { renderMode?: "rich" | "plain" },
+): string | undefined {
+  const rich = (opts?.renderMode ?? "rich") === "rich";
   switch (event.type) {
     case "message_end":
     case "message_update": {
@@ -284,22 +307,37 @@ export function renderAgentSessionEvent(event: { type: string; [k: string]: unkn
       const toolName = str(event.toolName);
       if (!toolName) return undefined;
       const hint = argsHint(event.args);
-      const line = hint ? `▸ ${toolName} ${hint}` : `▸ ${toolName}`;
-      return line.length > 60 ? `${line.slice(0, 59)}…` : line;
+      const visible = hint ? `▸ ${toolName} ${hint}` : `▸ ${toolName}`;
+      const capped = visible.length > 60 ? `${visible.slice(0, 59)}…` : visible;
+      if (!rich) return capped;
+      // Reconstruct the capped visible line colored: dim ▸, cyan toolName, plain hint.
+      const sp1 = capped.indexOf(" ");
+      const marker = capped.slice(0, sp1); // "▸"
+      const rest = capped.slice(sp1 + 1);
+      const sp2 = rest.indexOf(" ");
+      const name = sp2 === -1 ? rest : rest.slice(0, sp2);
+      const tail = sp2 === -1 ? "" : rest.slice(sp2); // " <hint>" (already capped)
+      return `${sgr(SGR.DIM, marker)} ${sgr(SGR.CYAN, name)}${tail}${tail ? SGR.RESET : ""}`;
     }
     case "tool_execution_end": {
       const toolName = str(event.toolName);
       if (!toolName) return undefined;
       const isError = event.isError === true;
-      return `◂ ${toolName} ${isError ? "✗" : "✓"}`;
+      const symbol = isError ? "✗" : "✓";
+      if (!rich) return `◂ ${toolName} ${symbol}`;
+      return `${sgr(SGR.DIM, "◂")} ${sgr(SGR.CYAN, toolName)} ${sgr(isError ? SGR.RED : SGR.GREEN, symbol)}`;
     }
     case "notice": {
       const level = str(event.level) ?? "info";
       const message = str(event.message);
-      return message ? `${level}: ${message}` : undefined;
+      if (!message) return undefined;
+      if (!rich) return `${level}: ${message}`;
+      const levelColor =
+        level === "error" ? SGR.RED : level === "warning" || level === "warn" ? SGR.YELLOW : SGR.CYAN;
+      return `${sgr(levelColor, level)}: ${message}${SGR.RESET}`;
     }
     case "irc_message":
-      return `💬 irc`;
+      return rich ? sgr(SGR.MAGENTA, "💬 irc") : `💬 irc`;
     default:
       return undefined; // unknown types skipped — no phantom output
   }
@@ -655,7 +693,7 @@ class TabController {
       if (!event) return;
       const existing = this.deps.registry.get(id);
       if (!existing) return; // AC8: event before lifecycle(start) is ignored (no phantom tab)
-      const chunk = renderAgentSessionEvent(event);
+      const chunk = renderAgentSessionEvent(event, { renderMode: this.deps.config.renderMode });
       if (!chunk) return;
       await this.deps.backend.sendText(existing.paneId ?? existing.tabId, chunk);
       this.deps.registry.upsert(id, { lastActivityMs: this.deps.now() });
@@ -697,7 +735,7 @@ function readConfig(): RelayConfig {
     enabled,
     holderCommand: process.env.OMP_SUBAGENT_TABS_HOLDER ?? DEFAULT_HOLDER,
     quietAfterMs: Number.isFinite(quietRaw) && quietRaw > 0 ? quietRaw : DEFAULT_QUIET_MS,
-    renderMode: "plain",
+    renderMode: (process.env.OMP_SUBAGENT_TABS_RENDER ?? "rich").toLowerCase() === "plain" ? "plain" : "rich",
   };
 }
 
