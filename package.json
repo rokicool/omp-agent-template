@@ -15,6 +15,6 @@
     "typescript": "^5.6.0"
   },
   "omp": {
-    "extensions": ["./src/enforce-orchestrator.ts", "./src/subagent-tabs.ts"]
+    "extensions": ["./src/enforce-orchestrator.ts", "./src/subagent-tabs.ts", "./src/mess-transport.ts", "./src/dot-agreement.ts"]
   }
 }

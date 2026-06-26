@@ -150,6 +150,22 @@ crashing — restart the session to re-probe. Tabs are read-only views; cancel v
 `omp`'s normal job-cancel. (Backend internals are documented in
 [.DEVREADME.md](./.DEVREADME.md).)
 
+## Dot-agreement token & cross-instance messaging
+
+Two opt-in extensions ship alongside the gate: a `.` agreement token for the root orchestrator, and cross-instance messaging for agents running in separate `omp` processes. Both follow the **same opt-in as the gate** (`OMP_ENABLE_ORCHESTRATOR=1` or `.omp/elon.json` with `{"enabled": true}`) and are dormant otherwise.
+
+**Dot-agreement token (C1).** The root orchestrator (Elon) accepts a lone `.` as explicit agreement with the most-recent **pending ask** recorded in `.app/PROJECT.md`. The token triggers **only** on a trimmed `.` — inputs like `v1.2`, `ok.`, `3.14`, or `..` are literal text, and affirmatives (`yes`, `ok`, `y`, `sure`) are ordinary input, **not** the token. On agreement Elon marks the ask `status=agreed`; if no pending ask is recorded he asks what you are agreeing to. The advisory framing is re-injected each session by `enforce-orchestrator`, and the `dot-agreement` extension hook surfaces the pending-ask context on the `.` turn.
+
+**Cross-instance messaging (C2).** When team agents run in **separate `omp` processes** that share the same `.app/` directory on disk, messages addressed to a remote agent are written to `.app/mess/` and picked up by the receiver's detection — a turn-start scan plus an idle poll. Co-located agents (same process) keep using normal in-app delivery. Implemented by the `mess-transport` extension, which exposes the `mess-send` and `mess-fail` tools on team agents: reply to an inbound message with `mess-send` (setting `inReplyTo` to the received id) to mark it processed; call `mess-fail({id, reason})` to reject it.
+
+**Knobs** — read once at session start:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `OMP_MESS_POLL_MS` | `2000` | Idle-poll interval (ms) for inbound messages. |
+| `OMP_MESS_CLAIM_STALE_MS` | `300000` | A claimed message is considered stale after this many ms and becomes re-claimable. |
+| `OMP_INSTANCE_ID` | auto-derived | Overrides the local instance id used to address and claim messages. |
+
 ## FAQ
 
 - **Do I need bun?** Only for Plugin A (`omp-agent-gate`). Plugin B is pure
