@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.4.0] - 2026-06-26
+
+### Added
+
+- **New `dot-agreement` extension: a `.` agreement token for the root orchestrator.** Elon accepts a lone `.` as explicit agreement with the most-recent **pending ask** recorded in `.app/PROJECT.md`. The token fires only when the trimmed reply is exactly `.` — whitespace-padded forms (`. `, ` .`) count, while embedded/repeated dots (`v1.2`, `ok.`, `3.14`, `..`) are literal text and affirmatives (`yes`, `ok`, `y`) are ordinary input, **not** the token. On agreement the ask is marked `status=agreed`; if none is pending, Elon asks what you are agreeing to. Like the gate, it is dormant unless the project opts in.
+
+- **New `mess-transport` extension: cross-instance messaging for agents running in separate `omp` processes.** When team agents run in separate `omp` processes that share the same `.app/` directory on disk, messages addressed to a remote agent are written to `.app/mess/` and picked up by the receiver (turn-start scan + idle poll); co-located agents keep using normal in-app delivery. Exposes `mess-send` and `mess-fail` tools on team agents. Configurable via `OMP_MESS_POLL_MS`, `OMP_MESS_CLAIM_STALE_MS`, `OMP_INSTANCE_ID`, and `.app/instances.json`. Dormant unless opted in.
+
+### Changed
+
+- Registered both extensions in `package.json#omp.extensions` and documented them across the orchestrator skills, the team-agent tool frontmatter (`mess-send`/`mess-fail`), and the user/developer guides.
+
+### Validation
+
+- `tsc --noEmit` clean; **63/63** unit tests pass; `scripts/validate-plugins.sh` reports ALL CHECKS PASSED.
+
 ## [v1.3.1] - 2026-06-25
 
 ### Changed

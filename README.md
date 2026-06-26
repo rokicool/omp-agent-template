@@ -56,7 +56,7 @@ Pin `omp-agent-gate` to a release tag (Plugin B always tracks latest);
 re-running is idempotent — every step is safe to repeat:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.3.1 bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.4.0 bash
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
@@ -66,7 +66,7 @@ See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
 ```bash
 # 1. Plugin A — the gate + rule + live tabs (installs user-wide; requires bun).
 #    Pin to a release tag. Switching the ref later needs `omp plugin uninstall omp-agent-gate` first.
-omp plugin install github:rokicool/omp-agent-template#v1.3.1
+omp plugin install github:rokicool/omp-agent-template#v1.4.0
 # local dev / linking:
 omp plugin link ./omp-agent-template
 
