@@ -1,7 +1,9 @@
 /**
- * subagent-tabs.ts — Relays per-subagent transcripts into supaterm native tabs
- * (primary) with a tmux fallback, keyed on agentId. Never auto-closes tabs on
- * agent end (transcript stays in scrollback for review).
+ * subagent-tabs.ts — Relays per-subagent transcripts into one tmux window per
+ * subagent inside a shared `omp-subagents` session, with a single optional
+ * Ghostty viewer attached to that session. No-op (invisible) when tmux is
+ * absent. Never auto-closes tabs on agent end (transcript stays in scrollback
+ * for review).
  *
  * Pure units (TabRegistry, argv builders, parsers, label/state/render helpers,
  * jsonl rewind, backend selection) are separated from the impure backends so
@@ -20,10 +22,7 @@ import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 // Constants + config
 // ---------------------------------------------------------------------------
 
-const TMUX_SESSION = "omp-agents";
-const DEFAULT_HOLDER = "stty -echo 2>/dev/null; cat";
 const DEFAULT_QUIET_MS = 30_000;
-const NOTIFY_TITLE = "Subagent";
 
 // ---------------------------------------------------------------------------
 // PURE — ANSI SGR helpers (cosmetic; always reset at line end)
@@ -48,7 +47,7 @@ function sgr(open: string, text: string): string {
 // Exported types
 // ---------------------------------------------------------------------------
 
-export type BackendKind = "supaterm" | "tmux";
+export type BackendKind = "tmux";
 // Tab status is DERIVED (idle/parked/revived/isolated are never emitted):
 export type AgentTabStatus = "running" | "quiet" | "aborted" | "ended";
 
@@ -56,8 +55,8 @@ export interface TabRecord {
   agentId: string; // PRIMARY KEY (the payload `id`)
   role?: string; // description (lifecycle) / assignment (progress)
   backend: BackendKind;
-  tabId: string; // supaterm tabID | tmux "<agentId>" window name
-  paneId?: string; // supaterm paneID
+  tabId: string; // tmux window id (@N) — stable target for all later ops
+  paneId?: string; // reserved (unused by the tmux backend; always undefined)
   status: AgentTabStatus;
   fromByte: number; // resync cursor into <id>.jsonl (monotonic ↑)
   startedAt: number; // epoch ms
@@ -68,7 +67,8 @@ export interface TabRecord {
 
 export interface RelayConfig {
   enabled: boolean; // master switch (default: true)
-  holderCommand: string; // default "stty -echo 2>/dev/null; cat"
+  focus: boolean; // focus the new window on spawn (default: false)
+  session: string; // shared tmux session name (default: "omp-subagents")
   quietAfterMs: number; // default 30000 — no event for this long ⇒ "quiet"
   renderMode: "rich" | "plain"; // rich = emit ANSI color in the streamed pane (default rich)
 }
@@ -137,7 +137,7 @@ export class TabRegistry {
       ? { ...existing, ...patch, agentId }
       : {
           agentId,
-          backend: "supaterm",
+          backend: "tmux",
           tabId: "",
           status: "running",
           fromByte: 0,
@@ -161,43 +161,25 @@ export class TabRegistry {
 
 // ---------------------------------------------------------------------------
 // PURE — argv builders (each returns string[]; the command binary is prepended
-// by the caller)
+// by the caller). Session targets use the `=<session>` EXACT-match prefix so a
+// shorter session name never collides with a prefix; per-window ops target the
+// opaque stable window id (`@N`) directly — no `session:window` prefix needed.
 // ---------------------------------------------------------------------------
 
-export function buildSupatermNewArgs(holder: string, opts: { cwd?: string; in?: string }): string[] {
-  return ["tab", "new", "--json", "--script", holder, ...(opts.cwd ? ["--cwd", opts.cwd] : []), ...(opts.in ? ["--in", opts.in] : [])];
-}
-
-export function buildSupatermRenameArgs(title: string, tabId: string): string[] {
-  return ["tab", "rename", title, tabId];
-}
-
-export function buildSupatermSendArgs(paneId: string, chunk: string): string[] {
-  return ["pane", "send", paneId, chunk];
-}
-
-export function buildSupatermNotifyArgs(title: string, body: string, paneId?: string): string[] {
-  return ["pane", "notify", "--title", title, "--body", body, ...(paneId ? [paneId] : [])];
-}
-
-export function buildSupatermCloseArgs(tabId: string): string[] {
-  return ["tab", "close", tabId];
-}
-
-export function buildSupatermLsArgs(): string[] {
-  return ["ls", "--json"];
+export function buildTmuxHasSessionArgs(session: string): string[] {
+  return ["has-session", "-t", `=${session}`];
 }
 
 export function buildTmuxNewSessionArgs(session: string): string[] {
   return ["new-session", "-d", "-s", session];
 }
 
-export function buildTmuxHasSessionArgs(session: string): string[] {
-  return ["has-session", "-t", session];
+export function buildTmuxNewWindowArgs(session: string, name: string): string[] {
+  return ["new-window", "-t", `=${session}`, "-n", name, "-P", "-F", "#{window_id}"];
 }
 
-export function buildTmuxNewWindowArgs(session: string, agentId: string): string[] {
-  return ["new-window", "-t", session, "-n", agentId, "-k"];
+export function buildTmuxRenameWindowArgs(target: string, name: string): string[] {
+  return ["rename-window", "-t", target, name];
 }
 
 export function buildTmuxSendKeysArgs(target: string, chunk: string): string[] {
@@ -208,20 +190,33 @@ export function buildTmuxKillWindowArgs(target: string): string[] {
   return ["kill-window", "-t", target];
 }
 
-/** Parse `sp tab new --json` stdout; throws a clear error if `tabID` is missing. */
-export function parseSupatermNewJson(stdout: string): { tabId: string; paneId?: string } {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stdout);
-  } catch {
-    throw new Error(`subagent-tabs: sp tab new returned non-JSON output: ${stdout.trim().slice(0, 200)}`);
-  }
-  const rec = asRec(parsed);
-  const tabId = str(rec?.["tabID"]);
-  if (!tabId) {
-    throw new Error(`subagent-tabs: sp tab new output missing tabID: ${stdout.trim().slice(0, 200)}`);
-  }
-  return { tabId, paneId: str(rec?.["paneID"]) };
+export function buildTmuxSelectWindowArgs(target: string): string[] {
+  return ["select-window", "-t", target];
+}
+
+export function buildTmuxListClientsArgs(session: string): string[] {
+  return ["list-clients", "-t", `=${session}`, "-F", "#{client_name}"];
+}
+
+/** argv handed to `open` to spawn the single Ghostty viewer attached to the session. */
+export function buildGhosttyViewerArgs(session: string): string[] {
+  return ["-na", "Ghostty", "--args", "-e", "tmux", "attach", "-t", session];
+}
+
+// ---------------------------------------------------------------------------
+// PURE — parsers / decisions
+// ---------------------------------------------------------------------------
+
+/** Parse `tmux new-window -P -F '#{window_id}'` stdout; throws if no `@N` id. */
+export function parseTmuxWindowId(stdout: string): string {
+  const id = stdout.trim().split(/\s+/)[0] ?? "";
+  if (/^@\d+$/.test(id)) return id;
+  throw new Error(`subagent-tabs: tmux new-window returned no window id: ${stdout.trim().slice(0, 200)}`);
+}
+
+/** Open the viewer only on the very first start, and only if no client is attached. */
+export function shouldOpenViewer(viewerOpened: boolean, ghosttyPresent: boolean, clientAttached: boolean): boolean {
+  return !viewerOpened && ghosttyPresent && !clientAttached;
 }
 
 // ---------------------------------------------------------------------------
@@ -387,104 +382,27 @@ export function readJsonlFromByte(path: string, fromByte: number): { lines: stri
 // PURE — backend selection
 // ---------------------------------------------------------------------------
 
-export function selectBackend(supatermUp: boolean, tmuxUp: boolean): BackendKind | null {
-  if (supatermUp) return "supaterm";
-  if (tmuxUp) return "tmux";
-  return null;
+export function selectBackend(tmuxUp: boolean): BackendKind | null {
+  return tmuxUp ? "tmux" : null;
 }
 
 // ---------------------------------------------------------------------------
-// IMPURE — backends
+// IMPURE — backends + viewer
 // ---------------------------------------------------------------------------
-
-export class SupatermBackend implements SurfaceBackend {
-  readonly kind: BackendKind = "supaterm";
-  private readonly exec: RelayExecFn;
-  private readonly logger: RelayLogger;
-  private readonly holder: string;
-  private readonly spBin: string;
-
-  constructor(exec: RelayExecFn, logger: RelayLogger, holder: string = DEFAULT_HOLDER) {
-    this.exec = exec;
-    this.logger = logger;
-    this.holder = holder;
-    this.spBin = process.env.SUPATERM_CLI_PATH ?? "sp";
-  }
-
-  async available(): Promise<boolean> {
-    try {
-      const res = await this.exec(this.spBin, buildSupatermLsArgs());
-      return res.code === 0;
-    } catch (err) {
-      this.logger.debug("subagent-tabs: supaterm probe failed", { error: String(err) });
-      return false;
-    }
-  }
-
-  async createTab(agentId: string, role: string | undefined, cwd: string): Promise<{ tabId: string; paneId?: string }> {
-    const res = await this.exec(this.spBin, buildSupatermNewArgs(this.holder, { cwd }), { cwd });
-    if (res.code !== 0) {
-      throw new Error(
-        `subagent-tabs: sp tab new failed (code ${res.code}): ${(res.stderr || res.stdout).trim().slice(0, 200)}`,
-      );
-    }
-    return parseSupatermNewJson(res.stdout);
-  }
-
-  async renameTab(tabId: string, label: string): Promise<void> {
-    try {
-      const res = await this.exec(this.spBin, buildSupatermRenameArgs(label, tabId));
-      if (res.code !== 0) {
-        this.logger.debug("subagent-tabs: sp tab rename non-zero", { code: res.code, stderr: res.stderr });
-      }
-    } catch (err) {
-      this.logger.debug("subagent-tabs: sp tab rename failed", { error: String(err) });
-    }
-  }
-
-  async sendText(target: string, chunk: string): Promise<void> {
-    try {
-      const res = await this.exec(this.spBin, buildSupatermSendArgs(target, chunk));
-      if (res.code !== 0) {
-        this.logger.debug("subagent-tabs: sp pane send non-zero", { code: res.code });
-      }
-    } catch (err) {
-      this.logger.debug("subagent-tabs: sp pane send failed", { error: String(err) });
-    }
-  }
-
-  async notify(message: string, target?: string): Promise<void> {
-    try {
-      const res = await this.exec(this.spBin, buildSupatermNotifyArgs(NOTIFY_TITLE, message, target));
-      if (res.code !== 0) {
-        this.logger.debug("subagent-tabs: sp pane notify non-zero", { code: res.code });
-      }
-    } catch (err) {
-      this.logger.debug("subagent-tabs: sp pane notify failed", { error: String(err) });
-    }
-  }
-
-  async closeTab(tabId: string): Promise<void> {
-    try {
-      const res = await this.exec(this.spBin, buildSupatermCloseArgs(tabId));
-      if (res.code !== 0) {
-        this.logger.debug("subagent-tabs: sp tab close non-zero", { code: res.code });
-      }
-    } catch (err) {
-      this.logger.debug("subagent-tabs: sp tab close failed", { error: String(err) });
-    }
-  }
-}
 
 export class TmuxBackend implements SurfaceBackend {
   readonly kind: BackendKind = "tmux";
   private readonly exec: RelayExecFn;
   private readonly logger: RelayLogger;
+  private readonly session: string;
+  private readonly focus: boolean;
   private sessionEnsured = false;
 
-  constructor(exec: RelayExecFn, logger: RelayLogger) {
+  constructor(exec: RelayExecFn, logger: RelayLogger, session: string, focus = false) {
     this.exec = exec;
     this.logger = logger;
+    this.session = session;
+    this.focus = focus;
   }
 
   async available(): Promise<boolean> {
@@ -499,9 +417,9 @@ export class TmuxBackend implements SurfaceBackend {
 
   private async ensureSession(): Promise<void> {
     if (this.sessionEnsured) return;
-    const has = await this.exec("tmux", buildTmuxHasSessionArgs(TMUX_SESSION));
+    const has = await this.exec("tmux", buildTmuxHasSessionArgs(this.session));
     if (has.code !== 0) {
-      const created = await this.exec("tmux", buildTmuxNewSessionArgs(TMUX_SESSION));
+      const created = await this.exec("tmux", buildTmuxNewSessionArgs(this.session));
       if (created.code !== 0) {
         throw new Error(
           `subagent-tabs: tmux new-session failed (code ${created.code}): ${created.stderr.trim().slice(0, 200)}`,
@@ -511,43 +429,113 @@ export class TmuxBackend implements SurfaceBackend {
     this.sessionEnsured = true;
   }
 
-  async createTab(agentId: string, _role: string | undefined, _cwd: string): Promise<{ tabId: string; paneId?: string }> {
+  async createTab(agentId: string, role: string | undefined, _cwd: string): Promise<{ tabId: string; paneId?: string }> {
     await this.ensureSession();
-    const res = await this.exec("tmux", buildTmuxNewWindowArgs(TMUX_SESSION, agentId));
+    const label = formatTabLabel(agentId, role, "running");
+    const res = await this.exec("tmux", buildTmuxNewWindowArgs(this.session, label));
     if (res.code !== 0) {
       throw new Error(`subagent-tabs: tmux new-window failed (code ${res.code}): ${res.stderr.trim().slice(0, 200)}`);
     }
-    return { tabId: agentId };
+    const id = parseTmuxWindowId(res.stdout);
+    if (this.focus) {
+      try {
+        await this.exec("tmux", buildTmuxSelectWindowArgs(id));
+      } catch (err) {
+        this.logger.debug("subagent-tabs: tmux select-window failed", { error: String(err) });
+      }
+    }
+    return { tabId: id };
   }
 
-  async renameTab(_tabId: string, _label: string): Promise<void> {
-    // tmux window name is set at creation; rename is a no-op.
+  async renameTab(target: string, label: string): Promise<void> {
+    try {
+      const res = await this.exec("tmux", buildTmuxRenameWindowArgs(target, label));
+      if (res.code !== 0) this.logger.debug("subagent-tabs: tmux rename-window non-zero", { code: res.code });
+    } catch (err) {
+      this.logger.debug("subagent-tabs: tmux rename-window failed", { error: String(err) });
+    }
   }
 
   async sendText(target: string, chunk: string): Promise<void> {
     try {
-      const res = await this.exec("tmux", buildTmuxSendKeysArgs(`${TMUX_SESSION}:${target}`, chunk));
-      if (res.code !== 0) {
-        this.logger.debug("subagent-tabs: tmux send-keys non-zero", { code: res.code });
-      }
+      const res = await this.exec("tmux", buildTmuxSendKeysArgs(target, chunk));
+      if (res.code !== 0) this.logger.debug("subagent-tabs: tmux send-keys non-zero", { code: res.code });
     } catch (err) {
       this.logger.debug("subagent-tabs: tmux send-keys failed", { error: String(err) });
     }
   }
 
   async notify(_message: string, _target?: string): Promise<void> {
-    // notify unsupported in tmux backend.
+    // unsupported in tmux; no-op
   }
 
-  async closeTab(tabId: string): Promise<void> {
+  async closeTab(target: string): Promise<void> {
     try {
-      const res = await this.exec("tmux", buildTmuxKillWindowArgs(`${TMUX_SESSION}:${tabId}`));
-      if (res.code !== 0) {
-        this.logger.debug("subagent-tabs: tmux kill-window non-zero", { code: res.code });
-      }
+      const res = await this.exec("tmux", buildTmuxKillWindowArgs(target));
+      if (res.code !== 0) this.logger.debug("subagent-tabs: tmux kill-window non-zero", { code: res.code });
     } catch (err) {
       this.logger.debug("subagent-tabs: tmux kill-window failed", { error: String(err) });
     }
+  }
+}
+
+/** A single Ghostty window attached to the shared tmux session; opened at most once. */
+export class GhosttyViewer {
+  private readonly exec: RelayExecFn;
+  private readonly logger: RelayLogger;
+  private readonly session: string;
+  private readonly ghosttyPresent: boolean;
+  private opened = false;
+
+  constructor(exec: RelayExecFn, logger: RelayLogger, session: string, ghosttyPresent: boolean) {
+    this.exec = exec;
+    this.logger = logger;
+    this.session = session;
+    this.ghosttyPresent = ghosttyPresent;
+  }
+
+  /**
+   * Open the viewer exactly once. If Ghostty is absent, a client is already
+   * attached, or we already attempted, do nothing. Attempt-once: success, fail,
+   * or skipped-because-attached all flip `opened` so we never spawn again.
+   */
+  async openIfFirst(): Promise<void> {
+    if (this.opened || !this.ghosttyPresent) return;
+    let clientAttached = false;
+    try {
+      const res = await this.exec("tmux", buildTmuxListClientsArgs(this.session));
+      clientAttached = res.code === 0 && res.stdout.trim() !== "";
+    } catch (err) {
+      this.logger.debug("subagent-tabs: tmux list-clients failed", { error: String(err) });
+    }
+    if (shouldOpenViewer(this.opened, this.ghosttyPresent, clientAttached)) {
+      try {
+        await this.exec("open", buildGhosttyViewerArgs(this.session));
+      } catch (err) {
+        this.logger.debug("subagent-tabs: ghostty viewer spawn failed", { error: String(err) });
+      }
+    }
+    this.opened = true;
+  }
+
+  /** Best-effort focus raise when OMP_SUBAGENT_TABS_FOCUS=1. */
+  async raise(): Promise<void> {
+    if (!this.ghosttyPresent) return;
+    try {
+      await this.exec("open", ["-a", "Ghostty"]);
+    } catch (err) {
+      this.logger.debug("subagent-tabs: ghostty raise failed", { error: String(err) });
+    }
+  }
+}
+
+async function detectGhostty(exec: RelayExecFn, logger: RelayLogger): Promise<boolean> {
+  try {
+    const res = await exec("sh", ["-c", "test -d /Applications/Ghostty.app || command -v ghostty >/dev/null 2>&1"]);
+    return res.code === 0;
+  } catch (err) {
+    logger.debug("subagent-tabs: ghostty detect failed", { error: String(err) });
+    return false;
   }
 }
 
@@ -589,6 +577,7 @@ interface ControllerDeps {
   logger: RelayLogger;
   now: () => number;
   cwd: () => string;
+  viewer?: GhosttyViewer;
 }
 
 class TabController {
@@ -625,6 +614,8 @@ class TabController {
           return;
         }
         const created = await this.deps.backend.createTab(id, role, this.deps.cwd());
+        await this.deps.viewer?.openIfFirst();
+        if (this.deps.config.focus) await this.deps.viewer?.raise();
         this.deps.registry.upsert(id, {
           backend: this.deps.backend.kind,
           role,
@@ -728,22 +719,27 @@ class TabController {
 
 function readConfig(): RelayConfig {
   const enabledEnv = process.env.OMP_SUBAGENT_TABS;
-  const enabled =
-    enabledEnv === undefined ? true : enabledEnv !== "0" && enabledEnv.toLowerCase() !== "false";
+  const enabled = enabledEnv === undefined ? true : enabledEnv !== "0" && enabledEnv.toLowerCase() !== "false";
   const quietRaw = Number(process.env.OMP_SUBAGENT_TABS_QUIET_MS);
+  const focusEnv = process.env.OMP_SUBAGENT_TABS_FOCUS;
+  const focus = focusEnv !== undefined && focusEnv !== "0" && focusEnv.toLowerCase() !== "false";
   return {
     enabled,
-    holderCommand: process.env.OMP_SUBAGENT_TABS_HOLDER ?? DEFAULT_HOLDER,
+    focus,
+    session: process.env.OMP_SUBAGENT_TABS_TMUX_SESSION ?? "omp-subagents",
     quietAfterMs: Number.isFinite(quietRaw) && quietRaw > 0 ? quietRaw : DEFAULT_QUIET_MS,
     renderMode: (process.env.OMP_SUBAGENT_TABS_RENDER ?? "rich").toLowerCase() === "plain" ? "plain" : "rich",
   };
 }
 
 /**
- * Default omp extension factory. Probes backends once, picks supaterm (else
- * tmux, else degrades to a no-op with a logged notice), then relays per-agent
- * lifecycle/progress/event channels into one tab per agentId. Tabs are never
- * auto-closed on agent end; they are closed on session_shutdown.
+ * Default omp extension factory. Selects the tmux engine (a shared session with
+ * one window per subagent); if tmux is absent it degrades to an invisible
+ * no-op with a single logged notice. Relays per-agent lifecycle/progress/event
+ * channels into one window per agentId. On first subagent start a single
+ * Ghostty viewer is attached to the session (if Ghostty is present and no
+ * client is already attached). Tabs are never auto-closed on agent end; they
+ * are closed on session_shutdown.
  */
 export default async function subagentTabs(pi: ExtensionAPI): Promise<void> {
   const config = readConfig();
@@ -752,18 +748,13 @@ export default async function subagentTabs(pi: ExtensionAPI): Promise<void> {
   pi.setLabel("Subagent tab relay");
 
   const exec: RelayExecFn = (command, args, options) => pi.exec(command, args, options);
-  const supaterm = new SupatermBackend(exec, pi.logger, config.holderCommand);
-  const tmux = new TmuxBackend(exec, pi.logger);
-
-  const [supatermUp, tmuxUp] = await Promise.all([supaterm.available(), tmux.available()]);
-  const choice = selectBackend(supatermUp, tmuxUp);
-  if (choice === null) {
-    pi.logger.warn(
-      "subagent-tabs: no surface backend available (supaterm socket and tmux both missing); relay disabled.",
-    );
-    return;
+  const tmux = new TmuxBackend(exec, pi.logger, config.session, config.focus);
+  if (!(await tmux.available())) {
+    pi.logger.info("subagent-tabs: no tmux; invisible");
+    return; // invisible no-op; no subscriptions registered
   }
-  const backend: SurfaceBackend = choice === "supaterm" ? supaterm : tmux;
+  const ghosttyPresent = await detectGhostty(exec, pi.logger);
+  const viewer = new GhosttyViewer(exec, pi.logger, config.session, ghosttyPresent);
 
   let cwd = process.cwd();
   pi.on("session_start", (_event, ctx) => {
@@ -772,11 +763,12 @@ export default async function subagentTabs(pi: ExtensionAPI): Promise<void> {
 
   const controller = new TabController({
     registry: new TabRegistry(),
-    backend,
+    backend: tmux,
     config,
     logger: pi.logger,
     now: () => Date.now(),
     cwd: () => cwd,
+    viewer,
   });
 
   const subs: Array<() => void> = [
@@ -807,7 +799,7 @@ export default async function subagentTabs(pi: ExtensionAPI): Promise<void> {
     }
     const snap = controller.snapshot();
     for (const rec of snap) {
-      void backend.closeTab(rec.tabId).catch(() => {
+      void tmux.closeTab(rec.tabId).catch(() => {
         // best-effort close on shutdown (never auto-close on agent end)
       });
       controller.drop(rec.agentId);

@@ -113,8 +113,8 @@ You'll see delegation happen as `task(agent="<name>", …)` calls in the transcr
 
 ## Live subagent tabs
 
-Whenever Elon delegates to a subagent, a native terminal tab opens per agent and
-streams live activity — on by default wherever `omp-agent-gate` is installed.
+Whenever Elon delegates to a subagent, a tab opens per agent and streams live
+activity — on by default wherever `omp-agent-gate` is installed.
 
 **What you see**
 
@@ -135,19 +135,26 @@ streams live activity — on by default wherever `omp-agent-gate` is installed.
 | Variable | Default | Effect |
 |---|---|---|
 | `OMP_SUBAGENT_TABS` | enabled | Master switch. `0` or `false` (case-insensitive) disables it; unset or any other value leaves it on. |
+| `OMP_SUBAGENT_TABS_TMUX_SESSION` | `omp-subagents` | Name of the shared tmux session that holds one window (tab) per subagent. |
+| `OMP_SUBAGENT_TABS_FOCUS` | off | When set to a truthy value (`1`/`true`/anything other than `0`/`false`), each new tab is selected (`tmux select-window`) and the Ghostty viewer is best-effort raised. Unset leaves new tabs in the background. |
 | `OMP_SUBAGENT_TABS_RENDER` | `rich` | `rich` streams ANSI color into the tab; `plain` strips it to plain text. |
 | `OMP_SUBAGENT_TABS_QUIET_MS` | `30000` | Milliseconds with no activity before a running tab is marked `quiet`. Must be `> 0`, else the default applies. |
-| `OMP_SUBAGENT_TABS_HOLDER` | `stty -echo 2>/dev/null; cat` | No-echo holder process the tab runs, so streamed bytes render verbatim instead of executing. |
 
 ```bash
 OMP_SUBAGENT_TABS=0 omp                                  # off for this session
+OMP_SUBAGENT_TABS_FOCUS=1 omp                            # focus + raise each new tab
 OMP_SUBAGENT_TABS_RENDER=plain OMP_SUBAGENT_TABS_QUIET_MS=10000 omp   # plain text, 10 s quiet threshold
 ```
 
-The terminal backend (supaterm primary, tmux fallback) is chosen once at startup.
-If the supaterm socket dies mid-session, the relay degrades silently rather than
-crashing — restart the session to re-probe. Tabs are read-only views; cancel via
-`omp`'s normal job-cancel. (Backend internals are documented in
+The backend is **tmux**: one shared session (default `omp-subagents`, set via
+`OMP_SUBAGENT_TABS_TMUX_SESSION`) holds one tmux window per subagent — those
+windows *are* the tabs. On the first subagent to start, **one** Ghostty window is
+opened (once, if Ghostty is installed) attached to that session, so every
+subagent appears as a tab inside the single viewer. If tmux isn't available the
+feature becomes an invisible no-op (the subagent still runs; one log line is
+emitted) — install tmux and restart the session to re-probe. Tabs are read-only
+views; cancel via `omp`'s normal job-cancel. (Backend internals — including why
+there is one viewer window rather than one per subagent — are documented in
 [.DEVREADME.md](./.DEVREADME.md).)
 
 ## Dot-agreement token & cross-instance messaging

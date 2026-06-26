@@ -1,9 +1,10 @@
 // subagent-tabs.test.ts — unit tests for the PURE logic of subagent-tabs.ts
 // using Node's BUILT-IN test runner (node:test + node:assert). No new deps.
 //
-// Live-environment ACs (AC1 two-live-tabs, AC2 live rich stream, AC4 live
-// cancel→aborted tab) REQUIRE a live supaterm socket + live omp subagent
-// session and are NOT covered by these unit tests.
+// These tests cover the pure logic (registry, argv builders, parser, label/
+// state/render, jsonl rewind, backend selection) plus the injectable-exec
+// backends (TmuxBackend, GhosttyViewer) via a recording fake RelayExecFn. They
+// do NOT exercise a live tmux server or a live omp subagent session.
 
 import { test } from "node:test";
 import { deepEqual, equal, ok, throws } from "node:assert";
@@ -16,26 +17,61 @@ import { join } from "node:path";
 // allowImportingTsExtensions so tsc accepts it too.
 import {
   TabRegistry,
-  buildSupatermNewArgs,
-  buildSupatermRenameArgs,
-  buildSupatermSendArgs,
-  buildSupatermNotifyArgs,
-  buildSupatermCloseArgs,
-  buildSupatermLsArgs,
-  buildTmuxNewSessionArgs,
-  buildTmuxHasSessionArgs,
-  buildTmuxNewWindowArgs,
-  buildTmuxSendKeysArgs,
-  buildTmuxKillWindowArgs,
-  parseSupatermNewJson,
   formatTabLabel,
   deriveTabStatus,
   renderAgentSessionEvent,
   readJsonlFromByte,
   selectBackend,
+  buildTmuxNewSessionArgs,
+  buildTmuxHasSessionArgs,
+  buildTmuxNewWindowArgs,
+  buildTmuxRenameWindowArgs,
+  buildTmuxSendKeysArgs,
+  buildTmuxKillWindowArgs,
+  buildTmuxSelectWindowArgs,
+  buildTmuxListClientsArgs,
+  buildGhosttyViewerArgs,
+  parseTmuxWindowId,
+  shouldOpenViewer,
+  TmuxBackend,
+  GhosttyViewer,
+  type RelayExecFn,
+  type RelayExecResult,
+  type RelayLogger,
 } from "./subagent-tabs.ts";
 // ANSI SGR strip helper for rich-mode assertions (no dependency).
 const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
+
+// ---------------------------------------------------------------------------
+// Fake-exec test scaffolding: records every [cmd, args] invocation and returns
+// scripted RelayExecResults chosen by the per-test `handler`. No real tmux.
+// ---------------------------------------------------------------------------
+
+const ok0 = (stdout: string): RelayExecResult => ({ stdout, stderr: "", code: 0, killed: false });
+
+const noopLogger: RelayLogger = {
+  error: () => {},
+  warn: () => {},
+  info: () => {},
+  debug: () => {},
+};
+
+/** Count recorded calls of binary `cmd` whose first arg (tmux subcommand) is `sub`. */
+function tmuxCalls(calls: ReadonlyArray<readonly [string, string[]]>, sub: string): string[][] {
+  return calls.filter(([c, a]) => c === "tmux" && a[0] === sub).map(([, a]) => a);
+}
+
+function recordingExec(handler: (cmd: string, args: string[]) => RelayExecResult): {
+  exec: RelayExecFn;
+  calls: Array<[string, string[]]>;
+} {
+  const calls: Array<[string, string[]]> = [];
+  const exec: RelayExecFn = async (cmd, args) => {
+    calls.push([cmd, [...args]]);
+    return handler(cmd, args);
+  };
+  return { exec, calls };
+}
 
 // ---------------------------------------------------------------------------
 // 1. TabRegistry
@@ -45,7 +81,7 @@ test("TabRegistry: create → get; upsert merge; revive keeps tabId; never-close
   const r = new TabRegistry();
 
   // create
-  r.upsert("a", { backend: "supaterm", tabId: "t1", status: "running", fromByte: 0, startedAt: 1, lastActivityMs: 1 });
+  r.upsert("a", { backend: "tmux", tabId: "t1", status: "running", fromByte: 0, startedAt: 1, lastActivityMs: 1 });
   const got = r.get("a");
   ok(got, "get returns the created record");
   equal(got?.agentId, "a");
@@ -91,42 +127,41 @@ test("TabRegistry: create → get; upsert merge; revive keeps tabId; never-close
 // ---------------------------------------------------------------------------
 
 test("argv builders produce exact arrays", () => {
-  // supaterm
-  deepEqual(buildSupatermNewArgs("cat", {}), ["tab", "new", "--json", "--script", "cat"]);
-  deepEqual(buildSupatermNewArgs("cat", { cwd: "/p" }), ["tab", "new", "--json", "--script", "cat", "--cwd", "/p"]);
+  // session ops use the =<session> EXACT-match prefix
+  deepEqual(buildTmuxHasSessionArgs("omp-subagents"), ["has-session", "-t", "=omp-subagents"]);
+  deepEqual(buildTmuxNewSessionArgs("omp-subagents"), ["new-session", "-d", "-s", "omp-subagents"]);
   deepEqual(
-    buildSupatermNewArgs("cat", { cwd: "/p", in: "main" }),
-    ["tab", "new", "--json", "--script", "cat", "--cwd", "/p", "--in", "main"],
+    buildTmuxNewWindowArgs("omp-subagents", "middev · Implementer"),
+    ["new-window", "-t", "=omp-subagents", "-n", "middev · Implementer", "-P", "-F", "#{window_id}"],
   );
-  deepEqual(buildSupatermRenameArgs("Title", "T1"), ["tab", "rename", "Title", "T1"]);
-  deepEqual(buildSupatermSendArgs("P1", "hi"), ["pane", "send", "P1", "hi"]);
-  deepEqual(buildSupatermNotifyArgs("T", "B"), ["pane", "notify", "--title", "T", "--body", "B"]);
-  deepEqual(buildSupatermNotifyArgs("T", "B", "P1"), ["pane", "notify", "--title", "T", "--body", "B", "P1"]);
-  deepEqual(buildSupatermCloseArgs("T1"), ["tab", "close", "T1"]);
-  deepEqual(buildSupatermLsArgs(), ["ls", "--json"]);
-
-  // tmux
-  deepEqual(buildTmuxNewSessionArgs("omp-agents"), ["new-session", "-d", "-s", "omp-agents"]);
-  deepEqual(buildTmuxHasSessionArgs("omp-agents"), ["has-session", "-t", "omp-agents"]);
-  deepEqual(buildTmuxNewWindowArgs("omp-agents", "middev"), ["new-window", "-t", "omp-agents", "-n", "middev", "-k"]);
-  deepEqual(buildTmuxSendKeysArgs("omp-agents:middev", "chunk"), ["send-keys", "-t", "omp-agents:middev", "-l", "chunk"]);
-  deepEqual(buildTmuxKillWindowArgs("omp-agents:middev"), ["kill-window", "-t", "omp-agents:middev"]);
+  // per-window ops target the opaque @N window id directly (no session:window prefix)
+  deepEqual(buildTmuxRenameWindowArgs("@3", "x"), ["rename-window", "-t", "@3", "x"]);
+  deepEqual(buildTmuxSendKeysArgs("@3", "chunk"), ["send-keys", "-t", "@3", "-l", "chunk"]);
+  deepEqual(buildTmuxKillWindowArgs("@3"), ["kill-window", "-t", "@3"]);
+  deepEqual(buildTmuxSelectWindowArgs("@3"), ["select-window", "-t", "@3"]);
+  deepEqual(
+    buildTmuxListClientsArgs("omp-subagents"),
+    ["list-clients", "-t", "=omp-subagents", "-F", "#{client_name}"],
+  );
+  deepEqual(
+    buildGhosttyViewerArgs("omp-subagents"),
+    ["-na", "Ghostty", "--args", "-e", "tmux", "attach", "-t", "omp-subagents"],
+  );
 });
 
 // ---------------------------------------------------------------------------
-// 3. parseSupatermNewJson
+// 3. parseTmuxWindowId
 // ---------------------------------------------------------------------------
 
-test("parseSupatermNewJson: valid {tabID,paneID} and missing tabID", () => {
-  deepEqual(parseSupatermNewJson('{"tabID":"T","paneID":"P"}'), { tabId: "T", paneId: "P" });
-  deepEqual(parseSupatermNewJson('{"tabID":"T"}'), { tabId: "T", paneId: undefined });
-  // tabID present but paneID absent/non-string → paneId undefined
-  deepEqual(parseSupatermNewJson('{"tabID":"T","paneID":42}'), { tabId: "T", paneId: undefined });
-  // missing tabID throws
-  throws(() => parseSupatermNewJson('{"paneID":"P"}'), /missing tabID/);
-  throws(() => parseSupatermNewJson("{}"), /missing tabID/);
-  // non-JSON throws
-  throws(() => parseSupatermNewJson("not json"), /non-JSON/);
+test("parseTmuxWindowId: parses @N id; throws on anything else", () => {
+  equal(parseTmuxWindowId("@5\n"), "@5");
+  equal(parseTmuxWindowId("  @12 "), "@12");
+  equal(parseTmuxWindowId("@0"), "@0");
+  // throws on empty / non-id / bare number / malformed
+  throws(() => parseTmuxWindowId(""), /no window id/);
+  throws(() => parseTmuxWindowId("nope"), /no window id/);
+  throws(() => parseTmuxWindowId("5"), /no window id/);
+  throws(() => parseTmuxWindowId("@x"), /no window id/);
 });
 
 // ---------------------------------------------------------------------------
@@ -331,9 +366,145 @@ test("readJsonlFromByte: rewind, missing file, trailing partial line", () => {
 // 8. selectBackend
 // ---------------------------------------------------------------------------
 
-test("selectBackend: supaterm preferred, tmux fallback, null if neither", () => {
-  equal(selectBackend(true, true), "supaterm");
-  equal(selectBackend(true, false), "supaterm");
-  equal(selectBackend(false, true), "tmux");
-  equal(selectBackend(false, false), null);
+test("selectBackend: tmux when up, null otherwise", () => {
+  equal(selectBackend(true), "tmux");
+  equal(selectBackend(false), null);
+});
+
+// ---------------------------------------------------------------------------
+// 9. TmuxBackend — ensureSession idempotency + window targeting
+// ---------------------------------------------------------------------------
+
+test("TmuxBackend.ensureSession: session present → has-session once, zero new-session across creates", async () => {
+  let win = 0;
+  const { exec, calls } = recordingExec((cmd, args) => {
+    if (cmd === "tmux" && args[0] === "new-window") return ok0(`@${++win}`);
+    return ok0(""); // has-session → code 0 (session exists); everything else ok
+  });
+  const backend = new TmuxBackend(exec, noopLogger, "omp-subagents", false);
+
+  const a = await backend.createTab("a", "doer", "/p");
+  const b = await backend.createTab("b", "doer", "/p");
+
+  equal(tmuxCalls(calls, "has-session").length, 1, "has-session runs exactly once (memoized)");
+  equal(tmuxCalls(calls, "new-session").length, 0, "no new-session when the session already exists");
+  equal(tmuxCalls(calls, "new-window").length, 2, "one new-window per createTab");
+  equal(a.tabId, "@1", "first create returns the first scripted @N");
+  equal(b.tabId, "@2", "second create returns the second scripted @N");
+});
+
+test("TmuxBackend.ensureSession: missing session → exactly one new-session across creates", async () => {
+  let win = 0;
+  const { exec, calls } = recordingExec((cmd, args) => {
+    if (cmd === "tmux" && args[0] === "has-session") return { stdout: "", stderr: "no session", code: 1, killed: false };
+    if (cmd === "tmux" && args[0] === "new-window") return ok0(`@${++win}`);
+    return ok0(""); // new-session → code 0 (created)
+  });
+  const backend = new TmuxBackend(exec, noopLogger, "omp-subagents", false);
+
+  await backend.createTab("a", "doer", "/p");
+  await backend.createTab("b", "doer", "/p");
+
+  equal(tmuxCalls(calls, "new-session").length, 1, "exactly one new-session across two creates");
+});
+
+test("TmuxBackend.createTab titles the window with formatTabLabel(running)", async () => {
+  const { exec, calls } = recordingExec((cmd, args) => {
+    if (cmd === "tmux" && args[0] === "new-window") return ok0("@7");
+    return ok0("");
+  });
+  const backend = new TmuxBackend(exec, noopLogger, "omp-subagents", false);
+
+  const created = await backend.createTab("middev", "Implementer", "/p");
+  equal(created.tabId, "@7");
+
+  const nw = tmuxCalls(calls, "new-window")[0];
+  ok(nw, "new-window called");
+  equal(nw[nw.indexOf("-n") + 1], formatTabLabel("middev", "Implementer", "running"), "-n label is the running-state formatTabLabel");
+});
+
+test("TmuxBackend: focus off → no select-window; on → exactly one select-window -t <@N>", async () => {
+  // focus off → no select-window
+  {
+    const { exec, calls } = recordingExec((cmd, args) => {
+      if (cmd === "tmux" && args[0] === "new-window") return ok0("@3");
+      return ok0("");
+    });
+    const backend = new TmuxBackend(exec, noopLogger, "omp-subagents", false);
+    await backend.createTab("a", "doer", "/p");
+    equal(tmuxCalls(calls, "select-window").length, 0, "focus off → no select-window");
+  }
+  // focus on → one select-window targeting the created @N
+  {
+    const { exec, calls } = recordingExec((cmd, args) => {
+      if (cmd === "tmux" && args[0] === "new-window") return ok0("@9");
+      return ok0("");
+    });
+    const backend = new TmuxBackend(exec, noopLogger, "omp-subagents", true);
+    const created = await backend.createTab("a", "doer", "/p");
+    const selects = tmuxCalls(calls, "select-window");
+    equal(selects.length, 1, "focus on → one select-window");
+    equal(selects[0][selects[0].indexOf("-t") + 1], created.tabId, "select-window targets the created @N");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 10. GhosttyViewer — open-exactly-once, client-attached guard, ghostty-absent
+// ---------------------------------------------------------------------------
+
+test("GhosttyViewer opens exactly once across N openIfFirst calls", async () => {
+  const { exec, calls } = recordingExec((cmd, args) => {
+    if (cmd === "tmux" && args[0] === "list-clients") return ok0(""); // no client attached
+    if (cmd === "open") return ok0("");
+    return ok0("");
+  });
+  const viewer = new GhosttyViewer(exec, noopLogger, "omp-subagents", true); // ghosttyPresent=true
+
+  await viewer.openIfFirst();
+  await viewer.openIfFirst();
+  await viewer.openIfFirst();
+
+  const opens = calls.filter(([c, a]) => c === "open" && a[0] === "-na");
+  equal(opens.length, 1, "open (Ghostty viewer) invoked exactly once");
+  deepEqual(opens[0][1], buildGhosttyViewerArgs("omp-subagents"), "open argv matches buildGhosttyViewerArgs");
+});
+
+test("GhosttyViewer not spawned when a client already attached", async () => {
+  const { exec, calls } = recordingExec((cmd, args) => {
+    if (cmd === "tmux" && args[0] === "list-clients") return ok0("/dev/ttys001"); // client attached
+    if (cmd === "open") return ok0("");
+    return ok0("");
+  });
+  const viewer = new GhosttyViewer(exec, noopLogger, "omp-subagents", true);
+
+  await viewer.openIfFirst();
+  await viewer.openIfFirst();
+  equal(calls.filter(([c]) => c === "open").length, 0, "no open when a client is already attached");
+});
+
+test("GhosttyViewer never opens when ghostty absent", async () => {
+  const { exec, calls } = recordingExec((cmd, args) => {
+    if (cmd === "tmux" && args[0] === "list-clients") return ok0(""); // no client
+    if (cmd === "open") return ok0("");
+    return ok0("");
+  });
+  const viewer = new GhosttyViewer(exec, noopLogger, "omp-subagents", false); // ghosttyPresent=false
+
+  await viewer.openIfFirst();
+  await viewer.openIfFirst();
+  equal(calls.filter(([c]) => c === "open").length, 0, "no open when ghostty absent");
+  equal(tmuxCalls(calls, "list-clients").length, 0, "list-clients not even probed when ghostty absent");
+});
+
+test("shouldOpenViewer: true only for (opened=false, present=true, attached=false)", () => {
+  // the one true combination
+  equal(shouldOpenViewer(false, true, false), true);
+  // all other 7 combinations are false
+  equal(shouldOpenViewer(true, true, false), false, "already opened");
+  equal(shouldOpenViewer(false, false, false), false, "ghostty absent");
+  equal(shouldOpenViewer(false, true, true), false, "client attached");
+  equal(shouldOpenViewer(true, false, false), false);
+  equal(shouldOpenViewer(true, true, true), false);
+  equal(shouldOpenViewer(true, false, true), false);
+  equal(shouldOpenViewer(false, false, true), false);
 });

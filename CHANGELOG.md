@@ -5,6 +5,50 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`subagent-tabs` reworked to a tmux engine + single Ghostty viewer.** The
+  Supaterm/`sp` backend is removed entirely; the surface is now one shared tmux
+  session (default `omp-subagents`) holding one tmux window per subagent — those
+  windows are the tabs. On the first subagent to start, **one** Ghostty window is
+  opened (once, if Ghostty is present and no client is already attached) attached
+  to the session, so every subagent appears as a tab inside that single viewer.
+  Trigger and titling are unchanged: tabs open on `task:subagent:lifecycle`
+  status `started`, are titled `<agentId> · <role>`, and are never auto-closed on
+  agent end (closed on `session_shutdown`).
+
+- **New config knobs.** `OMP_SUBAGENT_TABS_FOCUS` (default off; a truthy value
+  selects each new tmux window and best-effort raises the viewer) and
+  `OMP_SUBAGENT_TABS_TMUX_SESSION` (default `omp-subagents`; the shared session
+  name). `OMP_SUBAGENT_TABS` remains the master on/off; `OMP_SUBAGENT_TABS_RENDER`
+  and `OMP_SUBAGENT_TABS_QUIET_MS` are unchanged.
+
+### Changed
+
+- **Streaming is event-push, not `pipe-pane`/`capture-pane`.** The
+  `task:subagent:event` channel renders each event and writes it verbatim via
+  `tmux send-keys -t <target> -l`; an explicit `rewind()` replays any unsent
+  bytes from the agent's jsonl transcript.
+
+- **Invisible fallback when tmux is absent.** With no tmux the extension logs
+  `subagent-tabs: no tmux; invisible` and registers nothing; the subagent still
+  runs. tmux is now a hard dependency for the live-tabs feature.
+
+### Removed
+
+- **Supaterm/`sp` backend, `SUPATERM_CLI_PATH`, and the socket→tmux fallback
+  chain are gone** — there is no Supaterm code path and no `sp`/`sp-primary`
+  detection. **Breaking:** `OMP_SUBAGENT_TABS_HOLDER` (a no-echo holder process
+  from the Supaterm era) is no longer read and has no effect — it is safe to drop
+  from your environment. The visual model also changes from per-agent native tabs
+  to tmux windows inside a single Ghostty viewer window.
+
+- By design there is exactly one Ghostty viewer window (not one per subagent):
+  Ghostty has no tab IPC on any platform and no window IPC on macOS (see
+  `.app/RESEARCH.md`), so separate per-subagent windows are not possible.
+
 ## [v1.4.0] - 2026-06-26
 
 ### Added
