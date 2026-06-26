@@ -1,12 +1,10 @@
-# PROJECT — Elon Protocol Modification
+# PROJECT — Elon Protocol Modification — COMPLETE
 
-## Objective
-Two changes to the orchestrator plugin suite shipped from THIS repo (`omp-agent-gate` = Plugin A; `orchestrator-agents` = Plugin B):
-
+## Objective (delivered)
 1. **C1 — Dot agreement token.** A lone `.` reply = agree with the most-recent pending proposal (any origin) and proceed.
-2. **C2 — File-based inter-agent messaging, as cross-instance IPC.** In-app (`irc`) primary when co-located; file transport in `.app/mess/` (→ `arc/`) only when the receiver runs in a different omp instance.
+2. **C2 — Cross-instance file messaging.** In-app (`irc`) primary when co-located; file transport in `.app/mess/` (→ `arc/`) only when the receiver runs in a different omp instance.
 
-## Workflow Path: FULL
+## Workflow Path: FULL — ALL PHASES ✅
 | Phase | Status | Artifact / Commits |
 |---|---|---|
 | REQUEST | ✅ | `.app/PROJECT.md` |
@@ -14,16 +12,25 @@ Two changes to the orchestrator plugin suite shipped from THIS repo (`omp-agent-
 | RESEARCH | ✅ | `.app/RESEARCH.md` |
 | SPEC | ✅ `a2ef82e` | `.app/SPEC.md` |
 | DEVELOP | ✅ build CLEAN, 63/63 tests | `99fcef3` `47b2f6c` `6c3cbf1` `f357888` `b346eab` |
-| VALIDATE | ✅ **PASS** (cycle 1; all R1.1–R6.4 ACs met) | — |
-| **DONE** | ⏳ DocWorm documentation pass (conditional) | — |
+| VALIDATE | ✅ **PASS** (all R1.1–R6.4 ACs) | — |
+| DONE | ✅ DocWorm doc pass | docs commit (this gate) |
 
-## VALIDATE result (PASS)
-- All C1 (R1.1–R1.6) + C2 (R2.1–R2.8, R3.2–3.3, R4.1–4.3, R5.1–5.4, R6.2–6.4) ACs verified by code trace + passing unit tests.
-- Elon/Main NOT granted `mess-send` → no gate bypass. Read-only agents' writes constrained to `.app/mess/`.
-- Non-blocking notes: `. ` doc wording inconsistency (REQ R1.4 AC / SPEC §3.1 vs trim-based code); Q7.1 read-only sign-off flag.
+## Final verification
+- `npm run typecheck` → CLEAN; `npm test` → 63/63 pass.
+- Validator PASS: every AC met with file:line evidence + passing unit tests.
+- Elon/Main NOT granted `mess-send` (no gate bypass); read-only agents' writes constrained to `.app/mess/`.
+- Docs consistent; `. ` wording resolved; cross-instance setup guide added to README.
 
-## Accepted decisions
-Q7.1 constrained `.app/mess/` writes for read-only agents; P4 2000ms poll / 300000ms claim-stale; C1 = advisory text + best-effort `before_agent_start` hook; P2 = same-machine shared local filesystem; D1 async `resolveAgentId`; I3 completion via `mess-send`+`inReplyTo`.
+## Delivered (new code)
+- `src/dot-agreement.ts` (+test) — `before_agent_start` hook: `.` → inject most-recent pending ask.
+- `src/mess-transport.ts` (+test) — `mess-send`/`mess-fail` tools: transport selection, `.app/mess/` store, turn-scan+2s-poll detection, mkdir-claim, PENDING→CLAIMED→PROCESSED|FAILED lifecycle.
+- Registered in `package.json` omp.extensions; agent frontmatter + skill docs updated.
 
-## Key facts
-Repo IS source of both plugins (gate/frontmatter/`skill://elon` all editable). No runtime deps. Fallback trigger = `irc` `{outcome:"failed"}`; instance id SUPPLIED (env▸manifest▸uuid); `IrcBus.send` id-exact → `resolveAgentId`.
+## How to use
+- **Opt in** (same as the gate) to activate both extensions.
+- **Dot token:** reply `.` to agree with the most-recent pending proposal.
+- **Cross-instance:** set `OMP_INSTANCE_ID` (or let it auto-uuid into `.app/instances.json#self`); map agents→instances in `.app/instances.json#agents` (absent ⇒ co-located). Same machine, shared `.app/` filesystem.
+
+## Non-blocking follow-ups (optional)
+- 2 internal code comments in `src/mess-transport.ts` (~L651, L724) still use `mess-done` shorthand (zero behavior impact).
+- Behavioral/integration tests (two-process detection latency) are Elon-phase checks per SPEC §10, not unit tests.
