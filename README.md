@@ -56,7 +56,7 @@ Pin `omp-agent-gate` to a release tag (Plugin B always tracks latest);
 re-running is idempotent — every step is safe to repeat:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.3.1 bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.4.0 bash
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
@@ -66,7 +66,7 @@ See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
 ```bash
 # 1. Plugin A — the gate + rule + live tabs (installs user-wide; requires bun).
 #    Pin to a release tag. Switching the ref later needs `omp plugin uninstall omp-agent-gate` first.
-omp plugin install github:rokicool/omp-agent-template#v1.3.1
+omp plugin install github:rokicool/omp-agent-template#v1.4.0
 # local dev / linking:
 omp plugin link ./omp-agent-template
 
@@ -149,6 +149,45 @@ If the supaterm socket dies mid-session, the relay degrades silently rather than
 crashing — restart the session to re-probe. Tabs are read-only views; cancel via
 `omp`'s normal job-cancel. (Backend internals are documented in
 [.DEVREADME.md](./.DEVREADME.md).)
+
+## Dot-agreement token & cross-instance messaging
+
+Two opt-in extensions ship alongside the gate: a `.` agreement token for the root orchestrator, and cross-instance messaging for agents running in separate `omp` processes. Both follow the **same opt-in as the gate** (`OMP_ENABLE_ORCHESTRATOR=1` or `.omp/elon.json` with `{"enabled": true}`) and are dormant otherwise.
+
+**Dot-agreement token (C1).** The root orchestrator (Elon) accepts a lone `.` as explicit agreement with the most-recent **pending ask** recorded in `.app/PROJECT.md`. The token triggers **only** when the trimmed reply is `.` — so whitespace-padded forms (`. ` , ` .`) also count, while inputs with embedded or repeated dots (`v1.2`, `ok.`, `3.14`, `..`) are literal text; affirmatives (`yes`, `ok`, `y`, `sure`) are ordinary input, **not** the token. On agreement Elon marks the ask `status=agreed`; if no pending ask is recorded he asks what you are agreeing to. The advisory framing is re-injected each session by `enforce-orchestrator`, and the `dot-agreement` extension hook surfaces the pending-ask context on the `.` turn.
+
+**Cross-instance messaging (C2).** When team agents run in **separate `omp` processes** that share the same `.app/` directory on disk, messages addressed to a remote agent are written to `.app/mess/` and picked up by the receiver's detection — a turn-start scan plus an idle poll. Co-located agents (same process) keep using normal in-app delivery. Implemented by the `mess-transport` extension, which exposes the `mess-send` and `mess-fail` tools on team agents: reply to an inbound message with `mess-send` (setting `inReplyTo` to the received id) to mark it processed; call `mess-fail({id, reason})` to reject it.
+
+**Knobs** — read once at session start:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `OMP_MESS_POLL_MS` | `2000` | Idle-poll interval (ms) for inbound messages. |
+| `OMP_MESS_CLAIM_STALE_MS` | `300000` | A claimed message is considered stale after this many ms and becomes re-claimable. |
+| `OMP_INSTANCE_ID` | auto-derived | Overrides the local instance id used to address and claim messages. |
+
+**Setting up cross-instance messaging.** This is a power feature — most projects never need it: co-located agents (the common case) always use in-app delivery. It only matters when you run **two or more `omp` processes** that share the same project directory (and therefore the same `.app/` on disk). To wire it up:
+
+1. **Opt in** the project, exactly as for the gate — C2 follows the same opt-in contract: `OMP_ENABLE_ORCHESTRATOR=1`, or `.omp/elon.json` with `{"enabled": true}`. Both extensions (`dot-agreement`, `mess-transport`) stay dormant otherwise.
+2. **Give each instance a stable id.** Each `omp` process resolves its instance id in this order: the `OMP_INSTANCE_ID` env var ▸ the `self` field persisted in `.app/instances.json` ▸ an auto-generated `inst-<uuid>` (written to `.app/instances.json#self` on first run). For a fixed two-process setup, export a distinct `OMP_INSTANCE_ID` per process.
+3. **Declare which agents are remote.** Create `.app/instances.json` mapping each agent that runs in a *different* instance to its instance id. Agents **absent** from the map default to co-located (in-app delivery); the user is never a valid recipient.
+
+   ```json
+   {
+     "self": "inst-1",
+     "agents": { "middev": "inst-2", "leaddev": "inst-2" }
+   }
+   ```
+
+   Here `middev` and `leaddev` are declared remote (instance `inst-2`); every other agent is co-located and uses in-app delivery.
+
+When a team agent sends to a remote receiver, `mess-send` writes a file to `.app/mess/`; the receiver detects it (turn-start scan + idle poll) and delivers it as a normal turn. Replies/acks are also `mess-send` calls with `inReplyTo` set — there is no separate completion tool.
+
+**Debugging `.app/mess/`.** Each message is a markdown file named `<from>-<to>-<YYYYMMDDTHHMMSSZ>.md` (a `-NN` suffix breaks same-second collisions) with YAML frontmatter — `from`, `to`, `timestamp`, `type`, `in-reply-to`, plus `from-instance`/`to-instance` for cross-instance routing (`type` ∈ `DELEGATION`, `DELIVERABLE`, `QUESTION_BATCH`, `FAILURE`, `HANDOFF`). Lifecycle:
+
+- `.app/mess/<file>.md` — **PENDING** (written, not yet detected).
+- `.app/mess/<file>.claim/` present — **CLAIMED** (exactly one instance owns it; a claim older than `OMP_MESS_CLAIM_STALE_MS` / 5 min is reaped so a crashed processor's message is recovered).
+- `.app/mess/arc/<file>.md` — **PROCESSED** (the receiver replied) or **FAILED** (after 3 attempts, with a `## FAILURE` annotation). `arc/` is kept indefinitely — nothing is auto-deleted.
 
 ## FAQ
 
