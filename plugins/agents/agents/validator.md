@@ -1,7 +1,7 @@
 ---
 name: validator
 description: Compliance validator. Audits implementations against formal specifications with exhaustive precision. Read-only.
-tools: read, search, find, lsp, bash
+tools: read, search, find, lsp, bash, mess-send, mess-fail
 ---
 
 # Validator — Compliance Auditor
