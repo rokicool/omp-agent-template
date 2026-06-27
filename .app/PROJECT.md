@@ -13,30 +13,47 @@ allow promotion of an idea into the FULL workflow.
 FULL: REQUEST → GRILL → RESEARCH → SPEC → DEVELOP ⇄ VALIDATE → DONE
 
 ## Current Phase
-**VALIDATE cycle 1 → RESOLVE.** Validator verdict: **FAIL (single issue FAIL-1)**.
-AC1–AC12, AC14, all §4 invariants, U1–U9, and all 4 residual concerns = MET/ACCEPT.
-AC13 PARTIAL only on the located-error diagnostic half (safety-critical behavior met).
-41/41 + 96/96 + strict tsc PASS. RESOLVE = add `pi.logger` located-error on
-corrupt/non-empty-yielding IDEAS.md (~4 lines + 1 test), then re-validate.
+**DONE.** Validator PASS (14/14 ACs MET, 0 issues, no regression, all §4 invariants
+hold; 42/42 + 97/97 + strict tsc exit 0). DEVELOP ⇄ VALIDATE closed at cycle 2.
 
-## DEVELOP — landed (commits 990794e/508b2bd/66fe5c1/789382e)
-`src/idea-storage.ts`, `src/idea-storage.test.ts` (41 cases), `package.json`
-(5th `omp.extensions`), `plugins/agents/skills/elon/SKILL.md` (`<idea_storage>`),
-`src/append-system.default.md` (companion). `.app/IDEAS.md` deliberately absent.
+## Final deliverable (all committed)
+**Protocol artifacts (Elon `[PROTO]`):** GRILL `dc2fbb5`, RESEARCH `c27854b`,
+PA-1 `39724f9`, SPEC `9e4b0e1`, DEVELOP-status `1cbd127`, VALIDATE-status `fd93e0f`.
+**Implementation (LeadDev/MidDev):** `990794e` (module+tests+pkg), `508b2bd`
+(customType fix + cmd tests), `66fe5c1` (`<idea_storage>` SKILL block),
+`789382e` (append-system companion), `c748b6b` ([FIX] AC13(b) diagnostic).
 
-## VALIDATE cycle 1 — FAIL-1 (only failure)
-- **AC13(b) located-error diagnostic missing.** On a corrupt/non-empty-yielding
-  `.app/IDEAS.md`, `parseIdeas` returns `[]` silently (src/idea-storage.ts:138-154)
-  and the hook returns silently (src/idea-storage.ts:466-478) — no `pi.logger` line.
-  SPEC §5.4 + §15 AC13(b) require it. `pi.logger` available at types.ts:945-946.
-- **Fix:** emit `pi.logger.warn(...)` when the file EXISTS, is NON-EMPTY, and yields
-  0 records, before returning `[]`. + one test (stub captures `pi.logger.warn`).
-- Severity: LOW (observability only; inject-nothing/never-crash already met + tested).
+### Files
+- `src/idea-storage.ts` (NEW) — `before_agent_start` reminder hook; `idea`/`ideas`
+  commands; pure `parseIdeas`/`matchIdeas`/`remindersEnabled`/`buildIdeaInjection`;
+  `import {optedIn}`; `node:fs` read-only; zero deps.
+- `src/idea-storage.test.ts` (NEW) — 42 cases.
+- `package.json` — 5th `omp.extensions` entry; 0 runtime deps.
+- `plugins/agents/skills/elon/SKILL.md` — `<idea_storage>` advisory block.
+- `src/append-system.default.md` — companion paragraph.
+- `.app/IDEAS.md` — runtime-only (DocWorm-created on first capture).
+
+### Behavior
+- **Capture:** `/idea <text>` or NL phrase → Elon acks → DocWorm appends a `parked`
+  block to `.app/IDEAS.md` → confirms `IDEA-NNN`. Agents emit `idea-suggest` blocks;
+  Elon vetoes/accepts.
+- **Remind:** turn-start hook injects ≤2 `parked` ideas sharing ≥1 token with the
+  request (keyword/tag overlap); Elon surfaces a one-line pointer if relevant.
+- **List:** `/ideas` (non-terminal); `/ideas all` (audit incl. terminal).
+- **Promote:** `/idea promote IDEA-NNN` → `status=promoted` (block kept) → seeds a
+  fresh `.app/REQ.md` (Pending-Ask gate if a workflow is active — no clobber).
+- **Opt-out:** `.omp/elon.json` `{"ideas":{"reminders":false}}` or `OMP_IDEA_REMINDERS=0`.
+
+### DocWorm assessment
+SKIPPED — user-facing docs are intrinsic (skill `<idea_storage>` block + append-system
+companion), already landed and Validator-confirmed. No external/README surface missing.
 
 ## Phase Log
 - 2026-06-27 REQUEST → GRILL (dc2fbb5) → RESEARCH (c27854b) → PA-1 (39724f9) → SPEC (9e4b0e1).
-- 2026-06-27 DEVELOP — implemented (990794e, 508b2bd, 66fe5c1, 789382e); PROJECT.md (1cbd127).
-- 2026-06-27 VALIDATE c1 — Validator FAIL (FAIL-1 only); RESOLVE delegated to LeadDev.
+- 2026-06-27 DEVELOP — implemented (990794e, 508b2bd, 66fe5c1, 789382e); status (1cbd127).
+- 2026-06-27 VALIDATE c1 — FAIL (FAIL-1 only); status (fd93e0f).
+- 2026-06-27 RESOLVE c1 — AC13(b) fixed (c748b6b).
+- 2026-06-27 VALIDATE c2 — PASS (14/14 ACs). DONE.
 
 ## Pending Asks
 - [PA-1] 2026-06-27 origin=elon status=agreed | "Accept §6 assumptions + proceed to SPEC." (accepted)
