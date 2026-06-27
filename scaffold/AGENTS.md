@@ -7,7 +7,7 @@ This template binds the oh-my-pi session to a gated agent pipeline. Two mechanis
 1. **The root session IS Elon.** **Plugin A (`omp-agent-gate`)** — an extension-package — binds the interactive session to the orchestrator role: it ships the `enforce-orchestrator` gate (`src/enforce-orchestrator.ts`), a Definition-of-Done rule (`rules/ro-definition-of-done.md`, `alwaysApply`), and the bundled Elon framing (`src/append-system.default.md`, re-injected each session as an advisory message and overridable by a project-local `<cwd>/.omp/APPEND_SYSTEM.md`). The gate hard-blocks every tool outside Elon's contract at the root via a `tool_call` handler. Elon routes, gates, and relays; he never implements.
 2. **Team agents are real agent definitions.** Each role is shipped by **Plugin B (`orchestrator-agents`)**, a marketplace entry (`source: ./agents`) whose 7 agent definitions live under `plugins/agents/agents/<name>.md` with `tools:` / `spawns:` frontmatter that oh-my-pi enforces at the harness level. A subagent physically cannot call a tool not in its list, and cannot spawn an agent not in its `spawns` list.
 
-The detailed behavioral protocol for each role lives in its skill at `.agents/skills/<name>/SKILL.md`. The agent definition enforces the **tool boundary**; the skill defines the **procedure**.
+The detailed behavioral protocol for each role lives in its skill at `plugins/agents/skills/<name>/SKILL.md`. The agent definition enforces the **tool boundary**; the skill defines the **procedure**.
 
 ### Invocation
 
@@ -34,13 +34,13 @@ Escape hatch: set `OMP_BYPASS_ORCHESTRATOR=1` to disable the root guard (emergen
 | Agent | Defined at | Skill (protocol) | Enforced `tools` | Enforced `spawns` | Role |
 |---|---|---|---|---|---|
 | **Elon** | root session (`APPEND_SYSTEM.md` + extension) | `skill://elon` | `read, ask, todo`, `write`(.app/PROJECT.md only), `bash`(git only), `task` | `reqguru, drpe, leaddev, validator, docworm, hr` | Orchestrator — routes, gates, relays. NEVER implements. |
-| **ReqGuru** | `plugins/agents/agents/reqguru.md` | `skill://reqguru` | `read, write, search, find` | — | Requirements analyst — grill-me interviewer. |
-| **DrPe** | `plugins/agents/agents/drpe.md` | `skill://drpe` | `web_search, read, browser, edit, write` | — | Super researcher — internet, APIs, deep analysis. |
-| **LeadDev** | `plugins/agents/agents/leaddev.md` | `skill://leaddev` | `read, write, edit, bash, search, find, ast_grep, ast_edit, lsp, debug, task` | `middev, hr` | Architect — spec, review, integration. Delegates implementation to MidDev. |
-| **MidDev** | `plugins/agents/agents/middev.md` | `skill://middev` | `read, write, edit, bash, search, find, ast_grep, ast_edit, lsp, debug` | — | Implementer — writes code to spec. |
-| **Validator** | `plugins/agents/agents/validator.md` | `skill://validator` | `read, search, find, lsp, bash` | — | Compliance auditor — spec-vs-implementation. Read-only. |
-| **DocWorm** | `plugins/agents/agents/docworm.md` | `skill://docworm` | `read, write, edit, search, find` | — | Documentation specialist. |
-| **HR** | `plugins/agents/agents/hr.md` | `skill://hr` | `read, write, edit` | — | Agent definition & hiring. |
+| **ReqGuru** | `plugins/agents/agents/reqguru.md` | `skill://reqguru` | `read, write, search, find, mess-send, mess-fail` | — | Requirements analyst — grill-me interviewer. |
+| **DrPe** | `plugins/agents/agents/drpe.md` | `skill://drpe` | `web_search, read, browser, edit, write, mess-send, mess-fail` | — | Super researcher — internet, APIs, deep analysis. |
+| **LeadDev** | `plugins/agents/agents/leaddev.md` | `skill://leaddev` | `read, write, edit, bash, search, find, ast_grep, ast_edit, lsp, debug, task, mess-send, mess-fail` | `middev, hr` | Architect — spec, review, integration. Delegates implementation to MidDev. |
+| **MidDev** | `plugins/agents/agents/middev.md` | `skill://middev` | `read, write, edit, bash, search, find, ast_grep, ast_edit, lsp, debug, mess-send, mess-fail` | — | Implementer — writes code to spec. |
+| **Validator** | `plugins/agents/agents/validator.md` | `skill://validator` | `read, search, find, lsp, bash, mess-send, mess-fail` | — | Compliance auditor — spec-vs-implementation. Read-only. |
+| **DocWorm** | `plugins/agents/agents/docworm.md` | `skill://docworm` | `read, write, edit, search, find, mess-send, mess-fail` | — | Documentation specialist. |
+| **HR** | `plugins/agents/agents/hr.md` | `skill://hr` | `read, write, edit, mess-send, mess-fail` | — | Agent definition & hiring. |
 
 `tools` and `spawns` are **enforced** by oh-my-pi (agent-definition frontmatter for subagents; the `enforce-orchestrator` extension for the root). They are not advisory. Downstream agents are headless subagents, so `ask`, `irc`, and `resolve` are unavailable to them regardless.
 

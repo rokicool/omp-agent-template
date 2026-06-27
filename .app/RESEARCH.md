@@ -1,5 +1,13 @@
 # RESEARCH — Cross-Instance File Transport + Dot Agreement Token
 
+> **⚠ FROZEN HISTORICAL SNAPSHOT.** This document is the verbatim RESEARCH
+> artifact from the **Cross-Instance File Transport + Dot Agreement Token**
+> epic (researched 2026-06). The source inventory below — file paths, line
+> numbers, and the API surface under `node_modules/@oh-my-pi/pi-coding-agent/`
+> — reflects the repository state **at research time and is stale by design**.
+> It is preserved for traceability, not as a current reference; do not treat
+> the paths/line numbers herein as authoritative for the present codebase.
+
 **Phase:** RESEARCH (DrPe, read-only)
 **Status:** VERIFIED — every finding below is grounded in source the LeadDev re-read directly during SPEC. File paths are relative to the repo root or to `node_modules/@oh-my-pi/pi-coding-agent/`.
 **Sensitivity:** P2 (user-confirmed) — instances run on the SAME machine sharing a LOCAL filesystem. Network sync is explicitly OUT OF SCOPE. Designs below target local shared disk; network-mount caveats are noted as risks only.

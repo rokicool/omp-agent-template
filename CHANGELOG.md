@@ -5,7 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.8.0] - 2026-06-27
+
+### Added
+
+- **New `subagent-panel` extension: a live, always-on view of running subagents.** A compact panel above the editor streams per-subagent stats (status, agent, task, tool count, requests, context %, cost, resolved model) plus a work tail and an aggregate header; `Alt+S` opens a full scrollable table of every agent. Driven by the live `task:subagent:*` event bus (a 1 s tick only refreshes durations/sweeps finished rows); purely additive — complements the built-in HUD/status line/Agent Hub. Configurable via the `OMP_SUBAGENT_PANEL_*` env knobs. Unlike the gate, it is **not** gated by the orchestrator opt-in: it loads wherever Plugin A is installed and activates in any interactive TUI session (`ctx.hasUI`); no-op in headless/RPC/subagent/print.
+
+### Fixed
+
+- **Agent tool tables and 5 agent definitions now correctly reflect `mess-send`/`mess-fail`.** The orchestrator agent/skill docs, the scaffold references, and the developer guide's enforcement table listed stale tool sets; they now match the enforced frontmatter shipped by the `mess-transport` extension.
+- **Corrected phantom bundled-plugin paths.** Documentation referenced a non-existent `.agents/skills` bundled-plugin path; the correct plugin path is `plugins/agents/skills/` (project-local `.agents/skills` write paths are retained wherever they are documented as project-local).
+- **Added the missing MIT `LICENSE`.** The repo declared `MIT` in its manifests but shipped no `LICENSE` file.
+
+### Changed (Documentation)
+
+- **Aligned all version pins/examples and the installer default to the released tag.** `package.json#version`, both `.omp-plugin/marketplace.json` version fields (`metadata.version` + `plugins[].version`), `elon_ko.sh`'s default `OMP_AGENT_REF`, and the README/`.DEVREADME.md` install examples now read `v1.8.0`.
+- **Reconciled `.gitignore` with the `.app/` commit protocol.** Re-added `.next/` (the build output that lives on disk), which had been wrongly removed; `.app/*` stays ignored with `!.app/*.md` allow-listing the protocol artifacts.
+- **Marked `.app/RESEARCH.md` as a frozen historical snapshot.** The research artifact is now annotated as a point-in-time record rather than a live document.
+
 ## [Unreleased]
+
+_Nothing yet._
 
 ## [v1.7.0] - 2026-06-26
 

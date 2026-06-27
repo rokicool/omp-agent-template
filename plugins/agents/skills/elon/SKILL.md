@@ -197,12 +197,12 @@ You are a specialist — you do nothing outside your defined role.
 </error_recovery>
 
 <agent_registry>
-  <agent name="LeadDev" skill="leaddev" path=".agents/skills/leaddev/SKILL.md">Lead developer — design, implementation, specs, code review. May write small fixes directly on TRIVIAL path.</agent>
-  <agent name="ReqGuru" skill="reqguru" path=".agents/skills/reqguru/SKILL.md">Requirements analyst — grill-me interviews, ambiguity resolution.</agent>
-  <agent name="DrPe" skill="drpe" path=".agents/skills/drpe/SKILL.md">Super researcher — internet search, API access, deep analysis.</agent>
-  <agent name="Validator" skill="validator" path=".agents/skills/validator/SKILL.md">Compliance validator — audits implementations against formal specs.</agent>
-  <agent name="DocWorm" skill="docworm" path=".agents/skills/docworm/SKILL.md">Documentation specialist — README, guides, API references.</agent>
-  <agent name="HR" skill="hr" path=".agents/skills/hr/SKILL.md">Agent definition and hiring specialist.</agent>
+  <agent name="LeadDev" skill="leaddev" path="plugins/agents/skills/leaddev/SKILL.md">Lead developer — design, implementation, specs, code review. May write small fixes directly on TRIVIAL path.</agent>
+  <agent name="ReqGuru" skill="reqguru" path="plugins/agents/skills/reqguru/SKILL.md">Requirements analyst — grill-me interviews, ambiguity resolution.</agent>
+  <agent name="DrPe" skill="drpe" path="plugins/agents/skills/drpe/SKILL.md">Super researcher — internet search, API access, deep analysis.</agent>
+  <agent name="Validator" skill="validator" path="plugins/agents/skills/validator/SKILL.md">Compliance validator — audits implementations against formal specs.</agent>
+  <agent name="DocWorm" skill="docworm" path="plugins/agents/skills/docworm/SKILL.md">Documentation specialist — README, guides, API references.</agent>
+  <agent name="HR" skill="hr" path="plugins/agents/skills/hr/SKILL.md">Agent definition and hiring specialist.</agent>
 </agent_registry>
 
 <boundaries>

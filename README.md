@@ -54,7 +54,7 @@ Pin `omp-agent-gate` to a release tag (Plugin B always tracks latest);
 re-running is idempotent — every step is safe to repeat:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.6.0 bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.8.0 bash
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
@@ -92,7 +92,7 @@ curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/el
 ```bash
 # 1. Plugin A — the gate + rule (installs user-wide; requires bun).
 #    Pin to a release tag. Switching the ref later needs `omp plugin uninstall omp-agent-gate` first.
-omp plugin install github:rokicool/omp-agent-template#v1.6.0
+omp plugin install github:rokicool/omp-agent-template#v1.8.0
 # local dev / linking:
 omp plugin link ./omp-agent-template
 
@@ -175,6 +175,40 @@ When a team agent sends to a remote receiver, `mess-send` writes a file to `.app
 - `.app/mess/<file>.md` — **PENDING** (written, not yet detected).
 - `.app/mess/<file>.claim/` present — **CLAIMED** (exactly one instance owns it; a claim older than `OMP_MESS_CLAIM_STALE_MS` / 5 min is reaped so a crashed processor's message is recovered).
 - `.app/mess/arc/<file>.md` — **PROCESSED** (the receiver replied) or **FAILED** (after 3 attempts, with a `## FAILURE` annotation). `arc/` is kept indefinitely — nothing is auto-deleted.
+
+## Subagent observability panel
+
+> **Available since v1.8.0.** The `subagent-panel` extension ships with the v1.8.0 release — install it via the one-line installer (`elon_ko.sh`), or pin Plugin A to `github:rokicool/omp-agent-template#v1.8.0`.
+
+A live, always-on view of the subagents your orchestrator spawns. The `subagent-panel` extension renders a compact panel above the editor that streams per-subagent stats — status, agent, task, tool count, requests, context %, cost, and resolved model — plus a one-line tail of the most-active agent's current work and an aggregate header. Press **`Alt+S`** for a full floating table of every agent. It is driven by the live `task:subagent:*` event bus (a 1 s tick only refreshes elapsed durations and sweeps finished rows), redraws only its own widget, and is purely additive — it complements (does not replace) the built-in subagent HUD, status line, and Agent Hub.
+
+**Not gated by the orchestrator opt-in.** Unlike `dot-agreement` and `mess-transport`, this extension does not require `OMP_ENABLE_ORCHESTRATOR=1` or `.omp/elon.json`. It is registered in `package.json#omp.extensions`, so it loads wherever Plugin A (`omp-agent-gate`) is installed, and activates in any **interactive TUI session** — it no-ops when `ctx.hasUI` is false (headless, RPC, subagent, and print paths). Install Plugin A and run `omp` interactively; the panel is live, nothing to opt in.
+
+**What you see.**
+
+- *Persistent panel (≤ 10 lines, above the editor by default).* An aggregate header — `Subagents: N active · M done │ Σ <tokens> tok · $<cost>` — followed by one compact row per running subagent, e.g.:
+
+  ```
+  ▸ AuthLoader · wire JWT flow into session middleware   42🔧 18 req 61.3%/200K $1.04 zai/glm-5.2
+  ⏸ RateWatch · retry-after 429                          3🔧 1 req 0.9%/200K $0.02 zai/glm-5.2 (retry 2/5)
+  ```
+
+  a one-line tail of the most-active agent's work (`↳ AuthLoader: writing src/auth/session.ts …`), and — when more agents run than fit — an overflow hint (`… +R more (Alt+S for all)`). With zero agents it collapses to a single idle line (`Subagents: idle (0 active) · Alt+S to open table`), or hides entirely when `OMP_SUBAGENT_PANEL_HIDE_EMPTY=1`. Status icons: `▸` running · `⏸` parked/retrying · `✓` completed · `✗` failed · `⊘` aborted.
+
+- *Full table overlay (Alt+S).* A scrollable list of **all** agents with no 10-line cap and a column per stat; `↑`/`↓`/`PgUp`/`PgDn`/`Home`/`End` scroll, and `Alt+S`, `Esc`, or `q` close it. The footer shows the current viewport range and total.
+
+**Knobs** — read once at session start:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `OMP_SUBAGENT_PANEL_KEY` | `Alt+S` | Overlay toggle chord. |
+| `OMP_SUBAGENT_PANEL_PLACEMENT` | `aboveEditor` | `aboveEditor` \| `belowEditor`. |
+| `OMP_SUBAGENT_PANEL_HIDE_EMPTY` | unset | `1` hides the panel when zero agents run. |
+| `OMP_SUBAGENT_PANEL_SHOW_SYNC` | unset | `1` includes synchronous spawns (default: detached only, matching the built-in HUD). |
+| `OMP_SUBAGENT_PANEL_DONE_TTL_MS` | `30000` | How long a finished agent's frozen row is retained (ms). |
+| `OMP_SUBAGENT_PANEL_MIN_RENDER_MS` | `200` | Panel re-render throttle (ms). |
+
+**Known limits.** Agent identity (role label, parent, unread count) is derived from the live event payloads, not the IRC registry — there is no in-process accessor for the registry's `displayName`/`parent`/`unread`, so the overlay has no parent column. The toggle is registered via `pi.registerShortcut`, which does not expose a `keybindings.yml` action id; use `OMP_SUBAGENT_PANEL_KEY` to change the chord.
 
 ## FAQ
 

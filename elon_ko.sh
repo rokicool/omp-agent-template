@@ -11,7 +11,7 @@
 # Plugin B installed LATEST from the repo's default branch.
 #
 #   curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.6.0 bash
+#   curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.8.0 bash
 #
 # ── Pre-release install (pass a tag) ─────────────────────────────────────────
 # Pass a pre-release tag to pin BOTH plugins to that exact ref — for testing
@@ -42,7 +42,7 @@ if [ -n "$TAG" ]; then
   REF="$TAG"                            # Plugin A pinned to the tag
 else
   MODE="stable"
-  REF="${OMP_AGENT_REF:-v1.6.0}"        # static tag: avoids store ref-drift + network deps; OMP_AGENT_REF overrides for dev
+  REF="${OMP_AGENT_REF:-v1.8.0}"        # static tag: avoids store ref-drift + network deps; OMP_AGENT_REF overrides for dev
 fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -100,7 +100,7 @@ if [ "$MODE" = "pre-release" ]; then
   curl -fsSL "$tarball_url" | tar -xz -C "$extract_dir" \
     || die "failed to fetch pre-release '${TAG}' from ${tarball_url} — does the tag exist?"
   # GitHub's archive extracts to a single top-level dir; resolve it dynamically
-  # (its name depends on the ref — e.g. v1.6.0 → omp-agent-template-1.6.0).
+  # (its name depends on the ref — e.g. v1.8.0 → omp-agent-template-1.8.0).
   MKT_SOURCE="$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d | head -n1)"
   [ -n "$MKT_SOURCE" ] && [ -f "$MKT_SOURCE/.omp-plugin/marketplace.json" ] \
     || die "pre-release '${TAG}' tarball has no marketplace (.omp-plugin/marketplace.json)"
