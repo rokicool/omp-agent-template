@@ -5,8 +5,8 @@
 # The tag is therefore the distribution pin. This workflow additionally attaches
 # two consumable archives so each plugin is also installable offline / locally:
 #
-#   omp-agent-gate-<ver>.tgz          Plugin A, npm-packed (respects package.json#files)
-#   orchestrator-agents-<ver>.tar.gz  Plugin B, self-contained marketplace tree
+#   elon-ko-gate-<ver>.tgz          Plugin A, npm-packed (respects package.json#files)
+#   elon-ko-agents-<ver>.tar.gz  Plugin B, self-contained marketplace tree
 #                                     (`.omp-plugin/` catalog + `plugins/`), consumable
 #                                     via `omp plugin marketplace add <extracted>`
 #
@@ -59,21 +59,21 @@ jobs:
           }
 
       # Plugin A — npm pack honours package.json#files (src/, rules/).
-      - name: Build Plugin A artifact (omp-agent-gate)
+      - name: Build Plugin A artifact (elon-ko-gate)
         run: npm pack
 
       # Plugin B — the marketplace root is the repo root; ship the catalog
       # alongside the plugins tree so `omp plugin marketplace add <dir>` works.
-      - name: Build Plugin B artifact (orchestrator-agents)
+      - name: Build Plugin B artifact (elon-ko-agents)
         run: |
-          tar -czf "orchestrator-agents-${{ steps.ver.outputs.version }}.tar.gz" \
+          tar -czf "elon-ko-agents-${{ steps.ver.outputs.version }}.tar.gz" \
               .omp-plugin plugins
 
       - name: Compute checksums
         run: |
           sha256sum \
-            "omp-agent-gate-${{ steps.ver.outputs.version }}.tgz" \
-            "orchestrator-agents-${{ steps.ver.outputs.version }}.tar.gz" \
+            "elon-ko-gate-${{ steps.ver.outputs.version }}.tgz" \
+            "elon-ko-agents-${{ steps.ver.outputs.version }}.tar.gz" \
             > SHA256SUMS
           cat SHA256SUMS
 
@@ -86,7 +86,7 @@ jobs:
           body: |
             ## Install with oh-my-pi (`omp`)
 
-            **Plugin A — `omp-agent-gate`** (enforcement gate; requires [bun](https://bun.sh))
+            **Plugin A — `elon-ko-gate`** (enforcement gate; requires [bun](https://bun.sh))
 
             ```bash
             # tag-pinned (this release)
@@ -95,22 +95,22 @@ jobs:
             omp plugin install github:${{ github.repository }}
             ```
 
-            **Plugin B — `orchestrator-agents`** (7 agents + 8 skills; markdown only)
+            **Plugin B — `elon-ko-agents`** (7 agents + 8 skills; markdown only)
 
             ```bash
             omp plugin marketplace add ${{ github.repository }}
-            omp plugin install orchestrator-agents@omp-agent-template
+            omp plugin install elon-ko-agents@elon-ko
             ```
 
             ## Artifacts
 
             | File | Plugin | Install locally |
             |---|---|---|
-            | `omp-agent-gate-${{ steps.ver.outputs.version }}.tgz` | A (extension-package) | `omp plugin install ./omp-agent-gate-${{ steps.ver.outputs.version }}.tgz` |
-            | `orchestrator-agents-${{ steps.ver.outputs.version }}.tar.gz` | B (marketplace) | extract, then `omp plugin marketplace add ./<dir>` |
+            | `elon-ko-gate-${{ steps.ver.outputs.version }}.tgz` | A (extension-package) | `omp plugin install ./elon-ko-gate-${{ steps.ver.outputs.version }}.tgz` |
+            | `elon-ko-agents-${{ steps.ver.outputs.version }}.tar.gz` | B (marketplace) | extract, then `omp plugin marketplace add ./<dir>` |
 
             See `SHA256SUMS` for checksums.
           files: |
-            omp-agent-gate-${{ steps.ver.outputs.version }}.tgz
-            orchestrator-agents-${{ steps.ver.outputs.version }}.tar.gz
+            elon-ko-gate-${{ steps.ver.outputs.version }}.tgz
+            elon-ko-agents-${{ steps.ver.outputs.version }}.tar.gz
             SHA256SUMS

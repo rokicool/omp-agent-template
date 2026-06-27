@@ -3,8 +3,8 @@
 # validate-plugins.sh — structural integrity check for BOTH oh-my-pi plugins
 # shipped from this repo:
 #
-#   Plugin A  omp-agent-gate          extension-package (package.json#omp.extensions)
-#   Plugin B  orchestrator-agents     marketplace (.omp-plugin/marketplace.json)
+#   Plugin A  elon-ko-gate          extension-package (package.json#omp.extensions)
+#   Plugin B  elon-ko-agents     marketplace (.omp-plugin/marketplace.json)
 #
 # Run anywhere; needs only bash + jq. The TypeScript typecheck (Plugin A) is a
 # separate step (`npm run typecheck`), not part of this script — it needs the
@@ -30,9 +30,9 @@ note() { echo "  $*"; }
 have() { [ -e "$1" ]; }   # exists (file or dir)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Plugin A — omp-agent-gate (extension-package)
+# Plugin A — elon-ko-gate (extension-package)
 # ──────────────────────────────────────────────────────────────────────────────
-echo "== Plugin A: omp-agent-gate (extension-package) =="
+echo "== Plugin A: elon-ko-gate (extension-package) =="
 
 if have package.json && jq -e . package.json >/dev/null 2>&1; then
   ok "package.json is valid JSON"
@@ -68,10 +68,10 @@ else
 fi
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Plugin B — orchestrator-agents (marketplace)
+# Plugin B — elon-ko-agents (marketplace)
 # ──────────────────────────────────────────────────────────────────────────────
 echo
-echo "== Plugin B: orchestrator-agents (marketplace) =="
+echo "== Plugin B: elon-ko-agents (marketplace) =="
 
 MP=".omp-plugin/marketplace.json"
 if have "$MP" && jq -e . "$MP" >/dev/null 2>&1; then

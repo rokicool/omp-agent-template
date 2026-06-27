@@ -1,4 +1,4 @@
-# omp-agent-template
+# elon-ko
 
 A two-plugin set for [oh-my-pi](https://omp.sh) (`omp`) that turns your project
 into a **gated, multi-agent orchestrator pipeline**. Your root `omp` session runs
@@ -16,8 +16,8 @@ Two plugins, installed together:
 
 | Plugin | What it provides |
 |---|---|
-| **`omp-agent-gate`** | The enforcement **gate** (the root session can only route — direct `edit`/`write`/build are hard-blocked), a Definition-of-Done rule. |
-| **`orchestrator-agents`** | **7 specialist agents** + **8 skills**: `reqguru`, `drpe`, `leaddev`, `middev`, `validator`, `docworm`, `hr` (plus the `elon` orchestrator protocol). |
+| **`elon-ko-gate`** | The enforcement **gate** (the root session can only route — direct `edit`/`write`/build are hard-blocked), a Definition-of-Done rule. |
+| **`elon-ko-agents`** | **7 specialist agents** + **8 skills**: `reqguru`, `drpe`, `leaddev`, `middev`, `validator`, `docworm`, `hr` (plus the `elon` orchestrator protocol). |
 
 oh-my-pi has two disjoint plugin mechanisms — TypeScript extensions vs. agent
 marketplaces — so this repo ships **both from one tree**. You don't deal with
@@ -36,7 +36,7 @@ that; the installer wires them up.
 ## Prerequisites
 
 - **[oh-my-pi](https://omp.sh) (`omp`)** — the runtime.
-- **[bun](https://bun.sh)** — required only by `omp-agent-gate` (a TypeScript
+- **[bun](https://bun.sh)** — required only by `elon-ko-gate` (a TypeScript
   extension-package; `omp` resolves its deps with `bun install`). Plugin B
   (agents + skills) is pure markdown and needs only `omp`.
 
@@ -47,14 +47,14 @@ The one-line installer below fetches both if they're missing.
 Installs `omp` and `bun` if missing, then **both** plugins:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash
 ```
 
-Pin `omp-agent-gate` to a release tag (Plugin B always tracks latest);
+Pin `elon-ko-gate` to a release tag (Plugin B always tracks latest);
 re-running is idempotent — every step is safe to repeat:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.8.0 bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.0.0 bash
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
@@ -69,7 +69,7 @@ for testing work that is not yet released to production:
 
 ```bash
 # from the pre-release's GitHub Release page, copy its tag (e.g. pr-dev-abc1234):
-curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/pr-dev-abc1234/elon_ko.sh | bash -s -- pr-dev-abc1234
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/pr-dev-abc1234/elon_ko.sh | bash -s -- pr-dev-abc1234
 ```
 
 This differs from `OMP_AGENT_REF` (which pins **only** Plugin A, with Plugin B
@@ -84,21 +84,21 @@ source every time.
 To return to the latest **stable** release, re-run with no argument:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash
 ```
 
 ## Manual install
 
 ```bash
 # 1. Plugin A — the gate + rule (installs user-wide; requires bun).
-#    Pin to a release tag. Switching the ref later needs `omp plugin uninstall omp-agent-gate` first.
-omp plugin install github:rokicool/omp-agent-template#v1.8.0
+#    Pin to a release tag. Switching the ref later needs `omp plugin uninstall elon-ko-gate` first.
+omp plugin install github:rokicool/elon-ko#v2.0.0
 # local dev / linking:
-omp plugin link ./omp-agent-template
+omp plugin link ./elon-ko
 
 # 2. Plugin B — the agents + skills (marketplace).
-omp plugin marketplace add rokicool/omp-agent-template
-omp plugin install orchestrator-agents@omp-agent-template
+omp plugin marketplace add rokicool/elon-ko
+omp plugin install elon-ko-agents@elon-ko
 ```
 
 ## Switch it on (per project)
@@ -178,11 +178,11 @@ When a team agent sends to a remote receiver, `mess-send` writes a file to `.app
 
 ## Subagent observability panel
 
-> **Available since v1.8.0.** The `subagent-panel` extension ships with the v1.8.0 release — install it via the one-line installer (`elon_ko.sh`), or pin Plugin A to `github:rokicool/omp-agent-template#v1.8.0`.
+> **Available since v1.8.0.** The `subagent-panel` extension ships with the v1.8.0 release — install it via the one-line installer (`elon_ko.sh`), or pin Plugin A to `github:rokicool/elon-ko#v1.8.0`.
 
 A live, always-on view of the subagents your orchestrator spawns. The `subagent-panel` extension renders a compact panel above the editor that streams per-subagent stats — status, agent, task, tool count, requests, context %, cost, and resolved model — plus a one-line tail of the most-active agent's current work and an aggregate header. Press **`Alt+S`** for a full floating table of every agent. It is driven by the live `task:subagent:*` event bus (a 1 s tick only refreshes elapsed durations and sweeps finished rows), redraws only its own widget, and is purely additive — it complements (does not replace) the built-in subagent HUD, status line, and Agent Hub.
 
-**Not gated by the orchestrator opt-in.** Unlike `dot-agreement` and `mess-transport`, this extension does not require `OMP_ENABLE_ORCHESTRATOR=1` or `.omp/elon.json`. It is registered in `package.json#omp.extensions`, so it loads wherever Plugin A (`omp-agent-gate`) is installed, and activates in any **interactive TUI session** — it no-ops when `ctx.hasUI` is false (headless, RPC, subagent, and print paths). Install Plugin A and run `omp` interactively; the panel is live, nothing to opt in.
+**Not gated by the orchestrator opt-in.** Unlike `dot-agreement` and `mess-transport`, this extension does not require `OMP_ENABLE_ORCHESTRATOR=1` or `.omp/elon.json`. It is registered in `package.json#omp.extensions`, so it loads wherever Plugin A (`elon-ko-gate`) is installed, and activates in any **interactive TUI session** — it no-ops when `ctx.hasUI` is false (headless, RPC, subagent, and print paths). Install Plugin A and run `omp` interactively; the panel is live, nothing to opt in.
 
 **What you see.**
 
@@ -212,7 +212,7 @@ A live, always-on view of the subagents your orchestrator spawns. The `subagent-
 
 ## FAQ
 
-- **Do I need bun?** Only for Plugin A (`omp-agent-gate`). Plugin B is pure
+- **Do I need bun?** Only for Plugin A (`elon-ko-gate`). Plugin B is pure
   markdown. The one-line installer adds bun if missing.
 - **Is anything enforced before I opt in?** No. The gate is dormant until
   `OMP_ENABLE_ORCHESTRATOR=1` or `.omp/elon.json` opts the project in.
@@ -221,7 +221,7 @@ A live, always-on view of the subagents your orchestrator spawns. The `subagent-
 - **It installed, but the root session isn't gated.** The project hasn't opted
   in. Add `.omp/elon.json` (see above) or set `OMP_ENABLE_ORCHESTRATOR=1`.
 - **Switching the Plugin A ref gives a `DependencyLoop`.** Uninstall first:
-  `omp plugin uninstall omp-agent-gate`, then install the new pinned ref. (The
+  `omp plugin uninstall elon-ko-gate`, then install the new pinned ref. (The
   one-line installer does this for you.)
 - **Is it safe to install?** Plugin code runs **in-process, unsandboxed** when
   loaded — install only from sources you trust. MIT licensed.

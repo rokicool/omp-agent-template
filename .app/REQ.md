@@ -1,184 +1,216 @@
-# Requirements Document — omp-agent-gate / orchestrator-agents
+# Requirements Document — FULL Rebrand: `omp-agent-template` → `elon_ko`
 
-**Phase:** GRILL (Round 2, FINAL)
-**Scope:** Two changes to the orchestrator plugin suite that ships from this repo.
-- **C1** — `.` (dot) agreement token for Elon's pending-proposal flow.
-- **C2** — file-based inter-agent messaging, **reframed as cross-instance IPC**: in-app (`task()`/`irc`) stays primary when agents are co-located; file transport is used **only** when the receiver runs in a different omp instance.
-
-**Legend.** Each requirement carries **AC** (observable/testable acceptance criteria) and **ASSUMPTION** where a decision is deferred. `[FOR-SPEC]` = implementation detail owned by LeadDev's SPEC phase, not a requirement. Source tags: `[user]` = user-resolved; `[default]` = adopted default; `[DrPe]` = verified feasibility fact.
+> **Phase:** GRILL COMPLETE → REQ synthesis (input to LeadDev SPEC). All decisions below are USER-LOCKED; do not re-open. This document is the *what* (requirements + lockstep constraints), not the *how* (design/impl is LeadDev's).
+> **Synthesizer:** ReqGuru (`WriteReqMd`). **Date:** 2026-06-27.
+> **Source of truth for citations:** every `file:line` below was re-verified by `read`/`search` against the current repo at synthesis time (commit at v1.8.0). `package-lock.json` lines are stale (v1.5.0) and will auto-regenerate.
 
 ---
 
-## 1. Resolved-Decisions Summary
+## 1. Scope Statement (one line)
 
-### C1 — `.` agreement token
-| Tag | Decision | Source |
-|----|----------|--------|
-| C1-target | A lone `.` (trimmed) = agree with ANY currently-pending proposal, regardless of origin (ReqGuru, LeadDev, or Elon's own confirmation, e.g. "Proceed TRIVIAL path?"). | [user] |
-| C1-multi | If several proposals are pending, `.` accepts the MOST RECENT pending ask; the rest are deferred with a recorded note. | [user] |
-| C1-exact | Triggers ONLY when the trimmed reply is exactly one `.`. Embedded dots (`v1.2`, `ok.`, `3.14`) and `..` are literal. | [default] |
-| C1-noproposal | `.` arriving with nothing pending → Elon asks the user what they are agreeing to. | [default] |
-| C1-scope | Strictly `.`; other affirmatives (`yes`, `ok`, `y`) are NOT mapped to agreement. | [default] |
-
-### C2 — file-based messaging (cross-instance IPC)
-| Tag | Decision | Source |
-|----|----------|--------|
-| C2-intent | File transport is an **additional** method, used **only** when in-app (`task()`/`irc`) cannot reach the receiver because the receiver runs in a **different omp instance**. | [user] |
-| C2-processed | A message is "processed" once the receiver has **completed** the requested action; the receiver moves the file `.app/mess/` → `.app/mess/arc/` via an atomic rename at the end of its turn. | [user] |
-| C2-agentscope | All registered agents participate, **including MidDev**. The human user is **excluded**; user↔Elon `ask` traffic is out of scope. | [default] |
-| C2-naming | Filename `<sender>-<receiver>-<datetime>.md`; `datetime` = ISO-8601 UTC compact `YYYYMMDDTHHMMSSZ`; a `-NN` sequence suffix breaks same-second collisions; agent names restricted to `[A-Za-z0-9]` (no hyphens). | [default] |
-| C2-content | YAML frontmatter (`from`, `to`, `timestamp`, `type`, `in-reply-to`) + markdown body; `type` ∈ {DELEGATION, DELIVERABLE, QUESTION_BATCH, FAILURE, HANDOFF}, mirroring `task()` return semantics. | [default] |
-| C2-failure | On processing failure, retry-in-place in `.app/mess/` up to N attempts, then move to `arc/` with an explicit FAILURE annotation; mirrors the 3-cycle DEVELOP⇄VALIDATE spirit (N=3). | [default] |
-| C2-retention | `arc/` retained indefinitely for debug. | [default] |
-
-### Ground-truth feasibility facts (DrPe)
-- This repo is the **source of both plugins**: `omp-agent-gate` (Plugin A, `src/enforce-orchestrator.ts`) and `orchestrator-agents` (Plugin B, rooted at `./plugins`). The `tool_call` gate, `APPEND_SYSTEM` framing, agent `tools:`/`spawns:` frontmatter, and `skill://elon` are **all editable source here** — nothing is an immutable external binary.
-- `skill://elon` resolves to `plugins/agents/skills/elon/SKILL.md`. Agent definitions live at `plugins/agents/agents/{leaddev,middev,reqguru,drpe,validator,docworm,hr}.md`. There is **no `elon.md`** (Elon is the root session, not a spawned agent).
-- The **one capability absent** from the entire repo: an async file-delivery / polling / listener mechanism. It **must be built** for cross-instance C2.
+Rebrand the entire project from `omp-agent-template` to brand **`elon_ko`** (underscore everywhere — repo slug, dir, catalog, npm, marketplace, plugin names), renaming all four identity strings + both wire-protocol customTypes, bumping to **v2.0.0**, renaming the GitHub repo `rokicool/omp-agent-template` → `rokicool/elon_ko`, while leaving shipped CHANGELOG history and frozen `.app/` artifacts untouched (banner only).
 
 ---
 
-## 2. C1 Requirements — `.` Agreement Token
+## 2. Exact Old → New Name Table
 
-**Scope locus:** a **root-session** behavior (Elon parsing user replies). Implementation surface is editable source (gate / `APPEND_SYSTEM` framing / `skill://elon`); exact placement is `[FOR-SPEC]`. This mechanism applies to user replies to **any** pending ask, including questions ReqGuru/LeadDev raised that Elon relayed via `ask`.
+> **CORRECTION (authoritative):** the original draft of this table used underscore new-names (`elon_ko`, `elon_ko_gate`, `elon_ko_agents`). omp's marketplace/catalog/plugin-ID `NAME_RE` (`/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/`) **rejects underscores** (DrPe finding `agent://VerifyNpmAndUnderscore`). All omp-registered new names therefore use **hyphens**. The table below supersedes the underscore draft; the authoritative mirror is `.app/SPEC.md §2`. The installer FILENAME `elon_ko.sh` is the only underscore survivor (an OS path, not omp-validated).
 
-> **Definition — "pending ask":** a proposal or confirmation question that Elon has presented and that is awaiting a user decision. The **most-recent pending ask** is the last such unanswered item (typically the most recently relayed question or confirmation).
+| # | Identity string | OLD | NEW | Role |
+|---|---|---|---|---|
+| 1 | repo/dir/catalog name | `omp-agent-template` | `elon-ko` | repo slug, local dir, marketplace **catalog** name (`marketplace.json#name`) |
+| 2 | GitHub owner/repo path | `rokicool/omp-agent-template` | `rokicool/elon-ko` | clone/raw/homepage URLs; installer `REPO` var |
+| 3 | Plugin A (npm key + omp dep key) | `omp-agent-gate` | `elon-ko-gate` | `package.json#name`; the omp dependency-resolution key |
+| 4 | Plugin B (marketplace plugin entry) | `orchestrator-agents` | `elon-ko-agents` | `marketplace.json#plugins[].name` |
+| 5 | marketplace catalog id | `@omp-agent-template` | `@elon-ko` | install id suffix: `orchestrator-agents@omp-agent-template` → `elon-ko-agents@elon-ko` |
+| 6 | customType (wire-protocol) | `omp-agent-gate:dot-agreement` | `elon-ko-gate:dot-agreement` | `src/dot-agreement.ts:29` |
+| 7 | customType (wire-protocol) | `omp-agent-gate:append-system` | `elon-ko-gate:append-system` | `src/enforce-orchestrator.ts:140` |
 
-**R1.1 — Agreement token.** A user reply whose trimmed value is exactly `.` marks the **most-recent pending ask** as agreed.
-- AC: given pending ask P as most-recent and reply `.`, P is recorded as agreed and the flow proceeds on P.
+**Installer filename:** KEEP `elon_ko.sh` as-is (already brand-aligned; only its internal vars + banner text change). The optional local-dir rename `~/github/omp-agent-template` → `~/github/elon-ko` is a user-side `mv`, git-irrelevant.
 
-**R1.2 — Origin-agnostic pending set.** `.` agrees with a pending ask **regardless of origin** — ReqGuru question, LeadDev escalation, or Elon's own confirmation (e.g. "Proceed TRIVIAL path?").
-- AC: for a pending ask originating from a relayed ReqGuru question, reply `.` agrees with it identically to an Elon-origin confirmation.
-
-**R1.3 — Multi-pending resolution.** When ≥2 asks are pending, `.` accepts the **most-recent** one; the remaining pending asks are **deferred with a recorded note** (they stay pending for a later reply).
-- AC: with pending asks [A, B] (B most recent) and reply `.`, B is agreed; A remains pending and a note records "A deferred (superseded by agreement to B)".
-
-**R1.4 — Exact-match only.** The token triggers **only** when `trim(reply) == "."`. Replies with embedded or repeated dots are **literal** text, not agreement.
-- AC: replies `v1.2`, `ok.`, `3.14`, `..` are NOT agreement tokens (literal input); a reply whose trimmed value is `.` triggers — including whitespace-padded forms (`. ` , ` .`).
-
-**R1.5 — No-pending guard.** If `.` arrives with **nothing pending**, Elon asks the user what they are agreeing to (does not fabricate a target).
-- AC: with an empty pending set and reply `.`, Elon emits a clarification ask naming no proposal; no ask is marked agreed.
-
-**R1.6 — Affirmative scope is `.`-only.** Other affirmatives (`yes`, `ok`, `y`, `sure`, etc.) are **not** mapped to the agreement-token mechanism; they are processed as ordinary user input (Elon may still interpret them in normal conversation, but there is no token-level auto-agreement shortcut for them).
-- AC: reply `ok` to a pending yes/no ask does **not** invoke the `.` agreement-token path; it is ordinary input (observable: the agreement-token handler is not entered).
+**Resulting install ids (post-rebrand):**
+- Plugin A source: `github:rokicool/elon-ko#v2.0.0`
+- Plugin B install: `omp plugin install elon-ko-agents@elon-ko`
 
 ---
 
-## 3. C2-core Requirements — File-Based Messaging (transport-agnostic core)
+## 3. Categorized Rename Surface
 
-**R2.1 — Additional, gated transport.** File-based messaging is an **additional** transport, invoked **only** when in-app (`task()`/`irc`) cannot reach the receiver because the receiver runs in a **different omp instance**. Co-located receivers use in-app **exclusively**.
-- AC: a message to a **co-located** receiver produces **no** file under `.app/mess/` (in-app used); a message to a **remote** receiver produces a file under `.app/mess/`.
+All occurrences below are **in-scope** (non-historical). Counts are complete match-lists from exhaustive `search` of the full repo (`gitignore=false`). File:line verified.
 
-**R2.2 — Agent scope; user excluded.** All **registered agents** participate, including **MidDev**. The **human user is excluded**; user↔Elon `ask` traffic never uses file transport.
-- AC: a send whose `to:` is a registered agent is accepted; a send whose `to:` resolves to the user (or a non-registered name) is rejected/out-of-scope and writes no file.
+### 3a. Git / remote / repo identity (`rokicool` + repo-slug literals)
+~14 `rokicool` literals, all of form `rokicool/omp-agent-template`:
+- **README.md:50,57,72,87** — `raw.githubusercontent.com/rokicool/omp-agent-template/...`
+- **README.md:95,100,181** — `github:rokicool/omp-agent-template#v1.8.0`; `omp plugin marketplace add rokicool/omp-agent-template`
+- **elon_ko.sh:13,14,25** — raw-URL examples in comment header
+- **elon_ko.sh:33** — `REPO="rokicool/omp-agent-template"` (**SOURCE-OF-TRUTH var**)
+- **.DEVREADME.md:244,271,306** — install examples + DependencyLoop note
+- **marketplace.json:18** — `"homepage":"https://github.com/rokicool/omp-agent-template"`
 
-**R2.3 — Folder layout.** `.app/mess/` holds in-flight messages; `.app/mess/arc/` holds processed and failed messages.
-- AC: a freshly created message exists only under `.app/mess/`; after terminal disposition it exists only under `.app/mess/arc/`.
+**Auto-tracking (NO edit needed):** `release.yml:101` and `prerelease.yml:77,86` use `${{ github.repository }}`, which emits the new slug automatically after the GitHub repo rename. Verified: `prerelease.yml` has **zero** hardcoded identity literals.
 
-**R2.4 — Filename naming.** `<sender>-<receiver>-<datetime>.md` where `datetime = YYYYMMDDTHHMMSSZ` (ISO-8601 UTC compact); a `-NN` zero-padded sequence suffix breaks same-second same-pair collisions; agent names restricted to `[A-Za-z0-9]` so the `-` delimiter is unambiguous.
-- AC: every filename matches `^[A-Za-z0-9]+-[A-Za-z0-9]+-\d{8}T\d{6}Z(-\d{2,})?\.md$`; two messages with identical sender/receiver/second receive distinct `-NN` suffixes and neither overwrites the other.
+### 3b. npm package name (Plugin A: `omp-agent-gate` → `elon_ko_gate`)
+- **package.json:2** — `"name":"omp-agent-gate"` (**SOURCE OF TRUTH** — the omp dependency key)
+- **package-lock.json:2,8** — stale v1.5.0; **auto-regenerates** from `package.json` on bump (not a manual rename target)
+- No `repository`/`homepage`/`bugs`/`publishConfig`/`.npmrc` fields exist (verified) — `name` is the only npm-identity field.
 
-**R2.5 — Content schema.** Each file = YAML frontmatter with required keys `from`, `to`, `timestamp`, `type`, `in-reply-to` + a markdown body. `type` ∈ {DELEGATION, DELIVERABLE, QUESTION_BATCH, FAILURE, HANDOFF}, mirroring `task()` return semantics.
-- AC: every file parses to valid YAML frontmatter containing all required keys, a `type` from the enumerated set, and a non-empty markdown body.
+### 3c. Marketplace plugin/catalog (Plugin B + catalog)
+- **marketplace.json:3** — catalog `"name":"omp-agent-template"` → `elon_ko`
+- **marketplace.json:4** — `"owner":{ "name":"omp-agent-template" }` → `elon_ko`
+- **marketplace.json:12** — `"name":"orchestrator-agents"` (plugin entry) → `elon_ko_agents`
+- **marketplace.json:18** — homepage (see 3a)
+- **marketplace.json:7,16** — `version` fields (see §6)
 
-**R2.6 — Processed lifecycle (terminal success).** A message is "processed" once the receiver has **completed** the requested action; at the **end of its turn** the receiver moves the file `.app/mess/` → `.app/mess/arc/` via an **atomic rename**.
-- AC: after the receiver completes the requested action, the file is absent from `.app/mess/` and present in `.app/mess/arc/` (no partial/duplicate state).
+### 3d. Code namespaces — customTypes + their tests (MUST change together, see §4d)
+- **src/dot-agreement.ts:29** — `const DOT_CUSTOM_TYPE = "omp-agent-gate:dot-agreement"`
+- **src/enforce-orchestrator.ts:140** — `customType: "omp-agent-gate:append-system"`
+- **src/enforce-orchestrator.ts:26,45** — comments naming `orchestrator-agents` / `omp-agent-gate` (doc; update for consistency)
+- **src/dot-agreement.test.ts:86,215** — `equal(msg!.customType, "omp-agent-gate:dot-agreement")` (both assertions)
+- **src/append-system.default.md:39,43** — bundled Elon framing naming `omp-agent-gate` + `orchestrator-agents` (injected every session — user-visible)
 
-**R2.7 — Failure handling.** On processing failure, the receiver retries **in place** (file stays in `.app/mess/`) up to **N=3** attempts (mirroring the 3-cycle DEVELOP⇄VALIDATE spirit); after the Nth failure it moves the file to `arc/` with an explicit **FAILURE annotation** (attempt count + reason).
-- AC: a receiver that fails ≤2 times leaves the message in `.app/mess/` with an incremented attempt counter; on the 3rd failure the message resides in `arc/` with a FAILURE annotation recording count and reason.
+### 3e. Docs / URLs (README, .DEVREADME, scaffold — all shipped to consumers)
+- **README.md:** :1 (H1 title), :19,:20 (plugin table), :39,:53,:94,:97,:100,:101,:185,:215,:224 + the `rokicool` URLs at :50,:57,:72,:87,:95,:100,:181
+- **.DEVREADME.md:** :10,:14,:15,:122,:233,:234,:244,:271,:295,:297,:306
+- **scaffold/AGENTS.md:7,8** — names both plugins (shipped to downstream projects)
+- **scaffold/APPEND_SYSTEM.md:39,43** — names both plugins
+- **scaffold/PROTO.md:5** — names `orchestrator-agents`
 
-**R2.8 — Retention.** `arc/` entries are retained **indefinitely** for debugging (no automatic eviction).
-- AC: no automated process deletes or ages out `arc/` entries.
+### 3f. CI workflows (`.github/workflows/*`) — see §4a, §4b for lockstep
+- **ci.yml:4,5** (identity header comment), **:68,:70,:71** (Plugin B smoke-test install/uninstall/remove), **:81** (Plugin A uninstall), **:124,:127,:128,:129** (Plugin A jq assertion + msgs), **:131,:132,:133** (Plugin B jq id assertion + msgs)
+- **release.yml:8,9** (header comment), **:62** (step name), **:69,75,76** (build + checksum), **:89,98,102,109,110,114,115** (release-notes body + `files:` list)
+- **prerelease.yml** — auto-tracks via `github.repository`; **no edit**.
 
----
+### 3g. Installer internals (`elon_ko.sh`)
+- **:3,6,7,13,14,25** — comment header (names + raw URLs)
+- **:33** — `REPO=` var (see 3a)
+- **:34** — `MARKETPLACE="omp-agent-template"` → `elon_ko` (comment: "value of marketplace.json#name")
+- **:35** — `PLUGIN_B="orchestrator-agents"` → `elon_ko_agents`
+- **:44** — `REF="${OMP_AGENT_REF:-v1.8.0}"` → default tag (see §6)
+- **:103** — comment re: archive extract-dir name (`omp-agent-template-1.8.0`; auto-derived from slug → becomes `elon_ko-2.0.0`)
+- **:123,124,130,131,133** — Plugin A banner + `uninstall omp-agent-gate` key + `install` + ok msg (see §4c)
+- **:135** — Plugin B banner (uses `${PLUGIN_B}` var → auto-tracks)
+- **:145,148,149,166,169,170** — summary banners (pre-release + stable) naming `omp-agent-template`/`omp-agent-gate`/`orchestrator-agents`
 
-## 4. C2-cross-instance Requirements
-
-### 4a. Instance Model (R3.x)
-
-**R3.1 — "omp instance" definition.** An **omp instance** is a single oh-my-pi runtime process that hosts a set of agents and provides the in-app tools (`task`, `irc`). Agents hosted by the **same** instance are **co-located**; agents hosted by **different** instances are **remote** to each other.
-- AC: two agents in the same process can reach each other via in-app tools; an agent in process P1 cannot reach an agent in P2 via `task()`/`irc` (the in-app call returns "not reachable in this instance").
-
-**R3.2 — Agent→instance mapping.** There exists a mapping from each participating agent name to the instance that hosts it; a sender consults this mapping to classify a receiver as co-located or remote.
-- ASSUMPTION [PRODUCT, non-blocking]: mapping is provided by an **instance manifest** (e.g. `.app/instances.json` or equivalent config) listing `agent → instance-id`. Agents **absent** from the manifest default to **co-located** with the current sender's instance.
-- AC: given a manifest mapping agent `A → inst1` and sender in `inst2`, a send to `A` is routed to **file transport**; a send to agent `B` absent from the manifest uses **in-app** and writes no file.
-
-**R3.3 — Instance identity.** Every instance has a **stable, unique instance id**.
-- ASSUMPTION [PRODUCT, non-blocking]: derived from manifest/env; exact generation `[FOR-SPEC]`.
-- AC: two concurrently-running instances have **distinct** ids; an instance's id is **stable across restarts within a session**.
-- Open `[FEASIBILITY]`: confirm whether omp already exposes an instance-id concept (env var, pid, config) to reuse.
-
-### 4b. Transport-Selection Rule (R4.x)
-
-**R4.1 — Primary selection (instance-based).** To send to receiver R, sender S looks up R's instance via the mapping (R3.2). If `instance(R) == instance(S)` → use **in-app** (`task`/`irc`). If `instance(R) != instance(S)` → use **file transport**.
-- AC: a send to a co-located receiver uses in-app and writes no file; a send to a remote receiver writes a file and does not rely on in-app.
-
-**R4.2 — Fallback on unreachable in-app.** If an in-app delivery returns a "receiver not reachable in this instance" result, S **falls back** to file transport. This operationalizes the user intent ("file transport used when in-app cannot reach the receiver").
-- AC: an in-app send that returns "not reachable in this instance" is followed by a file being written to `.app/mess/`; the message is ultimately delivered via file transport.
-- Open `[FEASIBILITY]`: what exact return does `task()`/`irc` produce when the target is not in the instance? (defines the fallback trigger signal).
-
-**R4.3 — Transport observability.** The transport actually used for a given message is **observable** (recorded), so a test can assert which transport handled it.
-- AC: for any sent message there is a determinable record of `in-app` vs `file` transport; a test can assert the expected transport per receiver.
-
-### 4c. Message Detection — Remote Delivery (R5.x)
-
-> **Requirement-level only.** The detection *mechanism* (poll interval vs. event/listener) is `[FOR-SPEC]`. The requirement is the **observable** detection contract: a remote receiver becomes aware of a waiting message without any in-app signal (none crosses instances).
-
-**R5.1 — Detection requirement.** A remote receiver MUST be able to **detect** messages in `.app/mess/` addressed to it (`to:` == its agent name) **without** an in-app signal.
-- AC: a message written by a remote sender to `.app/mess/` with `to: Receiver` is detected by the `Receiver` instance even though no in-app channel connects the two instances.
-
-**R5.2 — Detection points.** Detection is triggered at **well-defined points**: at the **start of an agent's turn**, and whenever an agent is **idle / awaiting input**. Exact mechanism `[FOR-SPEC]`.
-- AC: a message present in `.app/mess/` addressed to an agent is detected at that agent's next turn-start or idle-check (not silently ignored).
-
-**R5.3 — Bounded detection latency.** A message addressed to an **idle** remote receiver is detected within a **bounded window** (a defined constant), not "eventually / never".
-- ASSUMPTION [PRODUCT, non-blocking]: window = "turn-start + a bounded idle-poll"; numeric value `[FOR-SPEC]`.
-- AC: a message written while the receiver is idle is detected within the bounded window; a test asserts detection-onset ≤ window.
-
-**R5.4 — Exclusive claim (no double-processing).** Once a receiver begins processing a detected message it **claims** the message exclusively, so **no other instance** processes the same message. Claim mechanism `[FOR-SPEC]` (atomic rename-to-claim, lockfile, etc.).
-- AC: with **two** receiver instances and **one** message addressed to that agent, **exactly one** instance processes it; the other does not act on it.
-- Open `[FEASIBILITY]`: confirm atomic-rename / lockfile guarantees on the target shared filesystem (macOS APFS, network mount).
-
-> **Lifecycle reconciliation (R2.6 + R5.4):** full state machine is `PENDING` (in `.app/mess/`, undetected) → `CLAIMED` (in `.app/mess/`, exclusively owned, in-progress) → `PROCESSED` (moved to `arc/`, R2.6) **or** `FAILED` (moved to `arc/` with annotation, R2.7). The claim (R5.4) covers the window between detection and end-of-turn completion.
-
-### 4d. Instance Identity, Addressing & Concurrency (R6.x)
-
-**R6.1 — Shared-filesystem assumption.** `.app/mess/` resides on a filesystem **readable and writable by all participating instances**.
-- ASSUMPTION [PRODUCT, **load-bearing**, non-blocking]: shared filesystem (local multi-process, network mount, or a transparent sync layer). **If this assumption is false** (instances on machines with no shared fs and no sync), the file-transport approach is not viable as specified and the transport design changes materially (network sync becomes a separate epic) — see Open Items P2.
-- AC: a message written by instance I1 is **visible/readable** by instance I2 within the detection window (R5.3).
-
-**R6.2 — Concurrent-write safety.** Multiple senders — possibly across instances — may write concurrently; naming uniqueness plus atomic-create guarantees **no two messages collide and none is lost**.
-- AC: N concurrent sends produce **N distinct files**, none overwritten; same-second same-pair collisions are resolved by the `-NN` suffix (R2.4).
-
-**R6.3 — Cross-instance addressing metadata.** Frontmatter **SHOULD** carry instance-routing metadata (`from-instance`, `to-instance`) so a receiver can attribute and reply across instances. The R2.5 required keys remain authoritative; exact field names `[FOR-SPEC]`.
-- AC: a cross-instance message includes enough metadata for the receiver to identify the originating instance and route a reply back.
-
-**R6.4 — Reply routing is not assumed co-located.** A reply (`in-reply-to`) to a cross-instance message is routed back to the originator's instance by the **same** selection rule (R4.1) — replies are **not** assumed in-app.
-- AC: a reply to a remote-origin message is written to `.app/mess/` (file transport) rather than assumed reachable in-app.
+### 3h. Other
+- **scripts/validate-plugins.sh:6,7,33,35,71,74** — header comments + echo labels naming both plugins
+- **`.omp/elon.json`** — `{"enabled":true}`; contains NO identity string; OUT OF SCOPE (brand-adjacent only).
 
 ---
 
-## 5. Open Items
+## 4. CRITICAL LOCKSTEP Constraints
 
-All open items below have a **non-blocking assumption** baked into the REQ above; they confirm/refine rather than gate SPEC/RESEARCH.
+A rename is a coupled change. Each pair below MUST land together in the same commit/PR or the pipeline breaks.
 
-### [PRODUCT] — for the user (confirm at convenience)
-- **P1 — Instance declaration mechanism.** How does the user declare that an agent runs in a different omp instance? *(Assumption R3.2: an instance manifest such as `.app/instances.json` maps `agent → instance-id`; absent agents default co-located.)*
-- **P2 — Shared filesystem vs. network sync (LOAD-BEARING).** Is `.app/mess/` on a shared filesystem (mount) or synced across separate machines (Syncthing/git/…)? *(Assumption R6.1: shared filesystem. If false, C2's file-transport is not viable as specified and becomes a larger network-sync epic — recommend confirming before SPEC.)*
-- **P3 — Instance-id provenance.** Should instance ids be user-assigned, manifest-derived, or auto-generated? *(Assumption R3.3: manifest/env-derived, stable per session.)*
-- **P4 — Detection-latency window value.** What bounded latency is acceptable for a remote receiver to notice a waiting message? *(Assumption R5.3: turn-start + bounded idle-poll; value `[FOR-SPEC]`.)*
-- **P5 — Cross-instance peer (irc-style) messaging scope.** The enumerated `type` set mirrors `task()` return semantics. Should fire-and-forget peer messaging across instances (irc-equivalent) be in scope now or deferred? *(Assumption: same transport reuses the schema; treat as extension, not blocking.)*
+### 4a. ci.yml jq assertions (coupled to surviving names)
+ci.yml's final "Assert both plugins installed" step hardcodes the exact registry/list shape; `npm pack` + `omp plugin list --json` emit whatever `package.json#name` and `marketplace.json` declare. Therefore:
+- **ci.yml:127** — `.name == "omp-agent-gate"` → `"elon_ko_gate"`
+- **ci.yml:131** — `.id == "orchestrator-agents@omp-agent-template"` → `"elon_ko_agents@elon_ko"`
+- **ci.yml:124,128,129,132,133** — echo/error/ok message strings naming the plugins
+- **ci.yml:68,70** — `omp plugin install/uninstall orchestrator-agents@omp-agent-template` → `elon_ko_agents@elon_ko`
+- **ci.yml:71** — `omp plugin marketplace remove omp-agent-template` → `elon_ko`
+- **ci.yml:81** — `omp plugin uninstall omp-agent-gate` → `elon_ko_gate`
 
-### [FEASIBILITY] — for DrPe (RESEARCH phase)
-- **F1 — Existing instance-id concept.** Does omp already expose an instance id (env var, pid, config) reusable for R3.3?
-- **F2 — In-app "unreachable" return shape.** What exact return does `task()`/`irc` produce when the target agent/peer is not present in the current instance? (Defines the R4.2 fallback trigger signal.)
-- **F3 — Atomicity guarantees on the shared fs.** Confirm atomic-rename / lockfile semantics on the target filesystem (macOS APFS / network mount) for R5.4 exclusive claim and R2.6/R2.7 terminal moves.
-- **F4 — Existing cross-instance/shared-state primitives.** Is there any pre-existing cross-instance or shared-state mechanism in omp (lockfile convention, known dirs) the new transport can build on?
+**Failure mode if decoupled:** CI's `jq -e` returns non-zero → job fails on `select(...)` (length 0).
+
+### 4b. release.yml artifact filenames
+- **Plugin A tarball is GENERATED** by `npm pack` from `package.json#name` → after bump the file is `elon_ko_gate-<ver>.tgz`. The **hardcoded** references that must match it: **release.yml:75** (`sha256sum "omp-agent-gate-..."`), **:109** (artifacts table), **:114** (`files:` list), **:8** (comment). → all become `elon_ko_gate`.
+- **Plugin B tarball is EXPLICIT** — `tar -czf "orchestrator-agents-<ver>.tar.gz"` at **release.yml:69** → change the literal to `elon_ko_agents`; mirror at **:76** (checksum), **:110** (table), **:115** (`files:`), **:9** (comment).
+
+**Failure mode if decoupled:** `sha256sum` fails (file not found) → release job dies before publishing; or a release ships with missing/misnamed artifacts.
+
+### 4c. `elon_ko.sh` DependencyLoop logic (uninstall/install keys)
+`omp` resolves Plugin A's dependency under its **package name**. Once `package.json#name` = `elon_ko_gate`, the installed plugin registers under that key, so the pre-install uninstall must target the SAME key or it silently no-ops and a stale ref triggers `bun DependencyLoop`:
+- **elon_ko.sh:131** — `omp plugin uninstall omp-agent-gate` → `omp plugin uninstall elon_ko_gate` (**HARD KEY**)
+- Plugin B install at **:137** uses `${PLUGIN_B}@${MARKETPLACE}` → auto-tracks once :34/:35 vars change → resolves to `elon_ko_agents@elon_ko`.
+
+**Failure mode if decoupled:** upgrade installs leave the old `omp-agent-gate` ref locked → `bun install` aborts `DependencyLoop` on every run on drifted machines.
+
+### 4d. customType strings (src + tests together)
+Two wire-protocol discriminators are produced by src and asserted by tests:
+- `omp-agent-gate:dot-agreement`: **src/dot-agreement.ts:29** ⇄ **src/dot-agreement.test.ts:86, :215**
+- `omp-agent-gate:append-system`: **src/enforce-orchestrator.ts:140** (no dedicated test asserting this exact string, but it shares the `omp-agent-gate:` prefix — rename for consistency).
+
+**Failure mode if decoupled:** `dot-agreement.test.ts` asserts the old customType while src emits the new → `npm test` fails (2 assertions).
 
 ---
 
-## 6. Non-Goals (explicit)
-- Do **not** design the detection/polling/listener **implementation** — that is SPEC/LeadDev (`[FOR-SPEC]` throughout R5).
-- Do **not** design the claim/lock **mechanism** — `[FOR-SPEC]` (R5.4).
-- Do **not** specify the instance-manifest **file format** beyond the requirement it satisfies (R3.2) — `[FOR-SPEC]`.
-- Do **not** include user↔Elon `ask` traffic in C2 (out of scope by C2-agentscope).
-- Do **not** design network sync (only relevant if P2 disproves the shared-fs assumption).
+## 5. GitHub Repo Rename Step
+
+Run **after** the rename work lands on `main` (so the renamed checkout's `origin` tracks the new slug), **before** tagging v2.0.0:
+```
+gh repo rename elon_ko   # in repo rokicool/omp-agent-template → rokicool/elon_ko
+```
+- **Exact new slug:** `rokicool/elon_ko` (underscore, per NAMING decision).
+- **GitHub auto-redirects** old `rokicool/omp-agent-template` URLs → existing `#v1.8.0` tag links and the v1.x release tarballs keep resolving during/after transition (this is why shipped CHANGELOG URLs are left intact — they still work).
+- `${{ github.repository }}` (release.yml:101, prerelease.yml:77,86) then emits `rokicool/elon_ko` automatically.
+- Update the ~14 hardcoded `rokicool` literals (§3a) + `marketplace.json:18` homepage so the *source* matches the new identity (redirects are a safety net, not a substitute).
+- **Local remote refresh:** `git remote set-url origin https://github.com/rokicool/elon_ko.git` (post-rename).
+
+---
+
+## 6. Version Bump to 2.0.0
+
+Rationale: the catalog-id change `@omp-agent-template` → `@elon_ko` (and both plugin-name changes) is a **breaking public-API change** for existing `orchestrator-agents@omp-agent-template` installs → semver **MAJOR**. Bump these together:
+- **package.json:3** — `"version":"1.8.0"` → `"2.0.0"`
+- **marketplace.json:7** (`metadata.version`) and **:16** (`plugins[].version`) → `2.0.0`
+- **elon_ko.sh:44** — default `OMP_AGENT_REF` → `v2.0.0`
+- **All `#v1.8.0` doc pins** → `#v2.0.0`: README.md:57,:95,:181; .DEVREADME.md:244,:306; elon_ko.sh:14 (comment example)
+- **CHANGELOG.md** — add a new `## [v2.0.0] - <date>` section (insert above `## [v1.8.0]`, newest-first; the `[v2.0.0]` section documents the rebrand + migration). Then tag `git tag v2.0.0` and push (triggers `release.yml`).
+
+---
+
+## 7. HISTORY Policy (LEAVE + BANNER; do NOT rewrite)
+
+**OUT OF SCOPE for rename** — leave AS-IS as true historical record:
+- **Shipped CHANGELOG.md entries** `[v1.0]`…`[v1.8.0]` — they reference `omp-agent-gate`/`orchestrator-agents`/`omp-agent-template` extensively (e.g. CHANGELOG.md:118,158,160,167,174,177,181,182). Rewriting falsifies what shipped.
+- **Frozen `.app/` subagent-panel protocol artifacts** — `.app/REQ.md` (current file overwritten by THIS spec; the prior one), `.app/RESEARCH.md:15,16,17`, `.app/SPEC.md:5,160,165,166`, `.app/PROJECT.md:37`. These are point-in-time records of the v1.8.0 `subagent-panel` feature and must not be rewritten.
+- **`package-lock.json`** — regenerates on bump, not a historical-edit target.
+
+**IN SCOPE (additive only):**
+- A **"Project renamed" banner** at the very top of `CHANGELOG.md` (after the `# Changelog` intro, before `## [v1.8.0]`) stating the project was renamed `omp-agent-template` → `elon_ko` at v2.0.0, old names remain valid as historical record, and old GitHub URLs redirect.
+- A **Migration section** inside the `[v2.0.0]` CHANGELOG entry (D8): uninstall old names, reinstall new; note repo rename + redirect; mirror `elon_ko.sh`'s DependencyLoop handling.
+
+---
+
+## 8. PENDING VERIFICATION (gating SPEC / DEVELOP) — delegate to DrPe, parallel
+
+Two unknowns must be resolved before SPEC/DEVELOP can finalize. Both are factual lookups; run concurrently:
+
+1. **Is `omp-agent-gate` published to the public npm registry?**
+   - *Repo evidence (inference, F<0.8):* NO — distribution is git-ref-based; release artifacts are `npm pack` tarballs attached to GitHub Releases (`release.yml`), not `npm publish`; no `publishConfig`/`.npmrc`/`prepublishOnly`.
+   - **If YES (verified via `npm view omp-agent-gate`):** add a **deprecate + republish sub-plan** — `npm deprecate omp-agent-gate@* "renamed to elon_ko_gate"` and publish `elon_ko_gate@2.0.0` (requires npm owner access + an `npm publish` step, currently absent from CI).
+   - **If NO:** no-op; the npm-key rename is purely an omp dependency-resolution change.
+   - **Gate:** SPEC must include the sub-plan if YES; DEVELOP must not ship a rename that strands a published package.
+
+2. **Does `omp` accept underscore (`_`) in plugin names and marketplace catalog names?**
+   - *Risk:* underscore everywhere is unconventional (npm/GitHub/marketplace names are usually hyphenated). If `omp` rejects `_` in a plugin name or catalog id, the install/uninstall/jq assertions fail at runtime even with correct lockstep.
+   - **If NO:** **ESCALATE to Elon** — the NAMING decision (underscore everywhere) may need revisiting to SPLIT (brand/CLI=`elon_ko`, slugs=`elon-ko`). This is the one locked decision that empirical evidence can override.
+   - **If YES:** proceed as-is.
+   - **Gate:** DEVELOP cannot begin the plugin-name rename until confirmed; otherwise CI smoke-tests will fail opaquely.
+
+---
+
+## 9. Acceptance Criteria
+
+Observable, testable conditions — the SPEC/DEVELOP/VALIDATE loop is complete when ALL hold:
+
+1. **Zero residual old-name occurrences** in non-historical files: a repo-wide `search` for `omp-agent-template`, `omp-agent-gate`, `orchestrator-agents`, `rokicool/omp-agent-template`, and `omp-agent-gate:dot-agreement`/`omp-agent-gate:append-system` returns matches ONLY inside shipped CHANGELOG entries (v1.0–v1.8.0) and frozen `.app/{REQ,RESEARCH,SPEC,PROJECT}.md`. (The `elvon_ko.sh` filename is `elon_ko.sh` — not an old name.)
+2. **`npm run typecheck` passes** (tsc --noEmit) — confirms the customType rename is type-clean.
+3. **`npm test` passes** — specifically `src/dot-agreement.test.ts:86,215` assertions on `elon_ko_gate:dot-agreement`.
+4. **CI name-assertions match new names** — green CI run where `ci.yml:127` asserts `elon_ko_gate` and `ci.yml:131` asserts `elon_ko_agents@elon_ko`; the Plugin A/B smoke-test install/uninstall paths use the new ids.
+5. **`release.yml` artifacts are named `elon_ko_gate-2.0.0.tgz` and `elon_ko_agents-2.0.0.tar.gz`** and all four cross-references (build/checksum/table/files) agree.
+6. **`elon_ko.sh` runs end-to-end** on a clean machine AND a drifted machine: `omp plugin uninstall elon_ko_gate` resolves (no stray `omp-agent-gate` key), both plugins register, `omp plugin install elon_ko_agents@elon_ko` succeeds.
+7. **Version 2.0.0 is consistent** across `package.json:3`, `marketplace.json:7,:16`, `elon_ko.sh:44`, and all `#v2.0.0` doc pins.
+8. **`v2.0.0` is tagged and released** (`git tag v2.0.0` → `release.yml` publishes the GitHub Release with correctly-named artifacts + SHA256SUMS).
+9. **GitHub repo renamed** to `rokicool/elon_ko` (`gh repo rename elon_ko`); `git remote` points at the new slug; `${{ github.repository }}` emits `rokicool/elon_ko`.
+10. **Old URLs redirect:** `https://github.com/rokicool/omp-agent-template` and its `raw`/`archive` paths resolve (HTTP redirect) to `rokicool/elon_ko` — including the v1.x tag tarballs.
+11. **HISTORY preserved:** shipped CHANGELOG entries (v1.0–v1.8.0) and frozen `.app/` artifacts are byte-identical to pre-rebrand (verified by diff); the "Project renamed" banner + `[v2.0.0]` Migration section are the only CHANGELOG additions.
+
+---
+
+## Open Questions
+
+- **[BLOCKER, §8.2]** Does `omp` accept underscore plugin/marketplace names? (If NO → NAMING decision reopens → escalate to Elon.) Pending DrPe.
+- **[GATING, §8.1]** Is `omp-agent-gate` on public npm? (If YES → SPEC adds a deprecate+republish sub-plan.) Pending DrPe.
+
+All other decision branches are LOCKED (user-confirmed). No further grill rounds required.

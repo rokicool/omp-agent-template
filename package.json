@@ -1,6 +1,6 @@
 {
-  "name": "omp-agent-gate",
-  "version": "1.8.0",
+  "name": "elon-ko-gate",
+  "version": "2.0.0",
   "description": "Elon orchestrator enforcement gate + Definition-of-Done rule for oh-my-pi.",
   "license": "MIT",
   "type": "module",

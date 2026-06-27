@@ -1,8 +1,8 @@
 # CI — validate both oh-my-pi plugins on every push and pull request.
 #
 # This repo ships TWO omp plugins from one tree:
-#   Plugin A  omp-agent-gate        extension-package  (package.json#omp.extensions, TS)
-#   Plugin B  orchestrator-agents   marketplace        (.omp-plugin/marketplace.json, markdown)
+#   Plugin A  elon-ko-gate        extension-package  (package.json#omp.extensions, TS)
+#   Plugin B  elon-ko-agents   marketplace        (.omp-plugin/marketplace.json, markdown)
 #
 # The gate has three layers:
 #   1. typecheck      Plugin A TypeScript compiles (tsc --noEmit)
@@ -65,10 +65,10 @@ jobs:
       - name: Smoke-test Plugin B (marketplace, markdown)
         run: |
           omp plugin marketplace add ./
-          omp plugin install orchestrator-agents@omp-agent-template
+          omp plugin install elon-ko-agents@elon-ko
           omp plugin list --json | jq -e '.marketplace | length > 0' >/dev/null
-          omp plugin uninstall orchestrator-agents@omp-agent-template || true
-          omp plugin marketplace remove omp-agent-template || true
+          omp plugin uninstall elon-ko-agents@elon-ko || true
+          omp plugin marketplace remove elon-ko || true
 
       # Plugin A is a TypeScript extension-package — its install runs
       # `bun install`, so bun must be present. Dry-run first, then a real
@@ -78,7 +78,7 @@ jobs:
           omp plugin install . --dry-run
           omp plugin install .
           omp plugin list --json | jq -e '.npm | length > 0' >/dev/null
-          omp plugin uninstall omp-agent-gate || true
+          omp plugin uninstall elon-ko-gate || true
 
   # Regression guard for the one-liner installer. Runs the repo's OWN checked-out
   # elon_ko.sh (NOT a hand-written install) with Plugin A pinned to the commit
@@ -121,13 +121,13 @@ jobs:
         run: |
           set -euo pipefail
           expected="$(jq -r .version package.json)"
-          echo "expected omp-agent-gate version: ${expected}"
+          echo "expected elon-ko-gate version: ${expected}"
           json="$(omp plugin list --json)"
           echo "$json" | jq -e --arg v "$expected" \
-            '.npm | map(select(.name == "omp-agent-gate" and .version == $v)) | length >= 1' \
-            || { echo "::error::omp-agent-gate@${expected} not installed"; exit 1; }
-          echo "  ok: omp-agent-gate@${expected} installed"
+            '.npm | map(select(.name == "elon-ko-gate" and .version == $v)) | length >= 1' \
+            || { echo "::error::elon-ko-gate@${expected} not installed"; exit 1; }
+          echo "  ok: elon-ko-gate@${expected} installed"
           echo "$json" | jq -e \
-            '.marketplace | map(select(.id == "orchestrator-agents@omp-agent-template")) | length >= 1' \
-            || { echo "::error::orchestrator-agents not installed"; exit 1; }
-          echo "  ok: orchestrator-agents installed"
+            '.marketplace | map(select(.id == "elon-ko-agents@elon-ko")) | length >= 1' \
+            || { echo "::error::elon-ko-agents not installed"; exit 1; }
+          echo "  ok: elon-ko-agents installed"

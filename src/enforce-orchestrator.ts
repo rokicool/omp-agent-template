@@ -23,7 +23,7 @@
  *
  * Subagents are headless (`ctx.hasUI === false`) so this guard never fires
  * inside them — they are restricted instead by their own agent-definition
- * frontmatter (shipped by the `orchestrator-agents` marketplace plugin).
+ * frontmatter (shipped by the `elon-ko-agents` marketplace plugin).
  *
  * Opt-in (disabled by default): the gate registers in every project that
  * installs this plugin, but the handler early-returns (imposes nothing) unless
@@ -42,7 +42,7 @@
  * `appendEntry` is not sent to the LLM). Hard enforcement is this gate + the
  * agent frontmatter, never the prompt alone.
  *
- * Loading: provided via `package.json#omp.extensions` (the `omp-agent-gate`
+ * Loading: provided via `package.json#omp.extensions` (the `elon-ko-gate`
  * plugin). Discovered by the `omp-plugins` provider when the package is loaded
  * through its own `extensions:` entry (npm/git install or `omp plugin link`).
  */
@@ -137,7 +137,7 @@ export default function enforceOrchestrator(pi: ExtensionAPI): void {
       if (!text) return;
       pi.sendMessage(
         {
-          customType: "omp-agent-gate:append-system",
+          customType: "elon-ko-gate:append-system",
           content: text,
           display: false,
           attribution: "user",

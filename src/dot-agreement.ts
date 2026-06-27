@@ -26,7 +26,7 @@ import { join } from "node:path";
 import { optedIn } from "./enforce-orchestrator.ts";
 
 /** Custom-message discriminator used for injected `.`-token turn context. */
-const DOT_CUSTOM_TYPE = "omp-agent-gate:dot-agreement";
+const DOT_CUSTOM_TYPE = "elon-ko-gate:dot-agreement";
 
 /** A single pending-ask record parsed from `.app/PROJECT.md`. */
 export interface PendingAsk {

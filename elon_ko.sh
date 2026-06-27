@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# elon_ko.sh — one-line installer for the omp-agent-template plugin set.
+# elon_ko.sh — one-line installer for the elon-ko plugin set.
 #
 # Ensures oh-my-pi (`omp`) and bun are present, then installs BOTH plugins:
-#   • omp-agent-gate        — Elon orchestrator enforcement gate (needs bun)
-#   • orchestrator-agents   — 7 agents + 8 skills (marketplace)
+#   • elon-ko-gate        — Elon orchestrator enforcement gate (needs bun)
+#   • elon-ko-agents   — 7 agents + 8 skills (marketplace)
 #
 # ── Stable install (no argument) ─────────────────────────────────────────────
 # Plugin A pinned to the release tag below (override with OMP_AGENT_REF);
 # Plugin B installed LATEST from the repo's default branch.
 #
-#   curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | OMP_AGENT_REF=v1.8.0 bash
+#   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.0.0 bash
 #
 # ── Pre-release install (pass a tag) ─────────────────────────────────────────
 # Pass a pre-release tag to pin BOTH plugins to that exact ref — for testing
@@ -22,7 +22,7 @@
 # omp references a local marketplace in place, so the directory must persist.
 #
 #   bash elon_ko.sh pr-dev-abc1234
-#   curl -fsSL https://raw.githubusercontent.com/rokicool/omp-agent-template/main/elon_ko.sh | bash -s -- pr-dev-abc1234
+#   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash -s -- pr-dev-abc1234
 #
 # Works on a clean machine, in a docker container, and on a machine where an
 # earlier (stable OR pre-release) version is already installed — every step is
@@ -30,9 +30,9 @@
 # at the source selected by the mode.
 set -euo pipefail
 
-REPO="rokicool/omp-agent-template"
-MARKETPLACE="omp-agent-template"        # value of marketplace.json#name
-PLUGIN_B="orchestrator-agents"
+REPO="rokicool/elon-ko"
+MARKETPLACE="elon-ko"        # value of marketplace.json#name
+PLUGIN_B="elon-ko-agents"
 PRERELEASE_BASE="${OMP_PRERELEASE_DIR:-$HOME/.omp-prerelease}"
 
 # ── mode: a positional tag switches to pre-release (both plugins pinned) ──────
@@ -42,7 +42,7 @@ if [ -n "$TAG" ]; then
   REF="$TAG"                            # Plugin A pinned to the tag
 else
   MODE="stable"
-  REF="${OMP_AGENT_REF:-v1.8.0}"        # static tag: avoids store ref-drift + network deps; OMP_AGENT_REF overrides for dev
+  REF="${OMP_AGENT_REF:-v2.0.0}"        # static tag: avoids store ref-drift + network deps; OMP_AGENT_REF overrides for dev
 fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -69,7 +69,7 @@ else
 fi
 
 # ── bun ──────────────────────────────────────────────────────────────────────
-# Plugin A (omp-agent-gate) is a TypeScript extension-package; `omp plugin
+# Plugin A (elon-ko-gate) is a TypeScript extension-package; `omp plugin
 # install` resolves its deps with `bun install`, so bun must be on PATH. (If omp
 # was just installed via --source above, bun came with it and this is a no-op.)
 say "Checking for bun"
@@ -100,7 +100,7 @@ if [ "$MODE" = "pre-release" ]; then
   curl -fsSL "$tarball_url" | tar -xz -C "$extract_dir" \
     || die "failed to fetch pre-release '${TAG}' from ${tarball_url} — does the tag exist?"
   # GitHub's archive extracts to a single top-level dir; resolve it dynamically
-  # (its name depends on the ref — e.g. v1.8.0 → omp-agent-template-1.8.0).
+  # (its name depends on the ref — e.g. v2.0.0 → elon-ko-2.0.0).
   MKT_SOURCE="$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d | head -n1)"
   [ -n "$MKT_SOURCE" ] && [ -f "$MKT_SOURCE/.omp-plugin/marketplace.json" ] \
     || die "pre-release '${TAG}' tarball has no marketplace (.omp-plugin/marketplace.json)"
@@ -120,19 +120,19 @@ ok "marketplace registered (${MKT_SOURCE})"
 # NOTE: deliberately NO `marketplace update` — in pre-release mode an update
 # would pull the default branch and overwrite the pinned tag with latest.
 
-# ── Plugin A: omp-agent-gate (extension-package) ─────────────────────────────
-# omp resolves Plugin A as a git-sourced dep whose key (`omp-agent-gate`) equals
+# ── Plugin A: elon-ko-gate (extension-package) ─────────────────────────────
+# omp resolves Plugin A as a git-sourced dep whose key (`elon-ko-gate`) equals
 # the package name this repo provides. If a DIFFERENT ref is already locked in
 # ~/.omp/plugins/ (a prior version, a bare/floating ref, or main-HEAD vs the
 # pinned tag), `bun install` aborts with `DependencyLoop`. `--force` alone does
 # NOT clear that stale resolution, so uninstall first — a no-op on a clean
 # machine — then install the pinned ref so every run/upgrade resolves cleanly.
-say "Installing Plugin A: omp-agent-gate"
-omp plugin uninstall omp-agent-gate >/dev/null 2>&1 || true
+say "Installing Plugin A: elon-ko-gate"
+omp plugin uninstall elon-ko-gate >/dev/null 2>&1 || true
 omp plugin install "${GH_A}" --force || die "Plugin A install failed"
-ok "omp-agent-gate installed (${GH_A})"
+ok "elon-ko-gate installed (${GH_A})"
 
-# ── Plugin B: orchestrator-agents (marketplace; --force = idempotent) ────────
+# ── Plugin B: elon-ko-agents (marketplace; --force = idempotent) ────────
 say "Installing Plugin B: ${PLUGIN_B}"
 omp plugin install "${PLUGIN_B}@${MARKETPLACE}" --force || die "Plugin B install failed"
 ok "${PLUGIN_B} installed"
@@ -142,11 +142,11 @@ if [ "$MODE" = "pre-release" ]; then
   cat <<EOF
 
 ============================================================
-  omp-agent-template installed — PRE-RELEASE '${TAG}'.
+  elon-ko installed — PRE-RELEASE '${TAG}'.
 
   Both plugins are pinned to tag '${TAG}':
-    • omp-agent-gate         — gate + Definition-of-Done rule
-    • orchestrator-agents    — 7 agents + 8 skills (from the tag, not latest)
+    • elon-ko-gate         — gate + Definition-of-Done rule
+    • elon-ko-agents    — 7 agents + 8 skills (from the tag, not latest)
 
   Plugin B was registered as a LOCAL marketplace from:
     ${MKT_SOURCE}
@@ -163,11 +163,11 @@ else
   cat <<EOF
 
 ============================================================
-  omp-agent-template installed.
+  elon-ko installed.
 
   Plugins:
-    • omp-agent-gate         — gate + Definition-of-Done rule
-    • orchestrator-agents    — 7 agents + 8 skills (always latest)
+    • elon-ko-gate         — gate + Definition-of-Done rule
+    • elon-ko-agents    — 7 agents + 8 skills (always latest)
 
   The gate is dormant until a project opts in:
     echo '{"enabled": true}' > .omp/elon.json

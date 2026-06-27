@@ -1,21 +1,21 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "omp-agent-template",
-  "owner": { "name": "omp-agent-template" },
+  "name": "elon-ko",
+  "owner": { "name": "elon-ko" },
   "metadata": {
     "description": "Elon multi-agent orchestrator roster + skills for oh-my-pi.",
-    "version": "1.8.0",
+    "version": "2.0.0",
     "pluginRoot": "./plugins"
   },
   "plugins": [
     {
-      "name": "orchestrator-agents",
+      "name": "elon-ko-agents",
       "description": "7-agent orchestrator roster + 8 skills.",
       "source": "./agents",
       "category": "development",
-      "version": "1.8.0",
+      "version": "2.0.0",
       "agents": ["hr", "docworm", "drpe", "leaddev", "middev", "reqguru", "validator"],
-      "homepage": "https://github.com/rokicool/omp-agent-template"
+      "homepage": "https://github.com/rokicool/elon-ko"
     }
   ]
 }

@@ -5,6 +5,39 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Project renamed
+
+At **v2.0.0** this project was renamed: the umbrella `omp-agent-template` → **`elon-ko`** (repo slug `rokicool/omp-agent-template` → `rokicool/elon-ko`), Plugin A `omp-agent-gate` → **`elon-ko-gate`**, Plugin B `orchestrator-agents` → **`elon-ko-agents`**, and the marketplace catalog id `@omp-agent-template` → **`@elon-ko`**. The installer keeps its filename `elon_ko.sh`. The old names in the v1.0–v1.8.0 entries below are left as a true historical record — GitHub redirects the old URLs, so existing tag/release links keep resolving. See the **Migration** notes in [v2.0.0] to upgrade.
+
+## [v2.0.0] - 2026-06-27
+
+### Changed
+
+- **Rebrand: the project is now `elon-ko`.** Breaking identity change across the umbrella and both plugins:
+  - Repo / marketplace catalog: `omp-agent-template` → **`elon-ko`**; GitHub repo `rokicool/omp-agent-template` → **`rokicool/elon-ko`**; catalog id `@omp-agent-template` → **`@elon-ko`**.
+  - Plugin A (npm key + omp dependency key): `omp-agent-gate` → **`elon-ko-gate`** (`package.json#name`).
+  - Plugin B (marketplace plugin entry): `orchestrator-agents` → **`elon-ko-agents`** (`.omp-plugin/marketplace.json#plugins[].name`).
+  - Wire-protocol customTypes: `omp-agent-gate:dot-agreement` → **`elon-ko-gate:dot-agreement`**; `omp-agent-gate:append-system` → **`elon-ko-gate:append-system`**.
+  - Version bumped to **`2.0.0`** (the catalog/plugin-name change is a breaking public-API change for existing installs); the installer's default tag pin is now `v2.0.0`.
+  - Installer filename **`elon_ko.sh` is unchanged** (already brand-aligned); only its internal vars and banner text moved to the new names. omp marketplace/catalog/plugin-ID names use **hyphens** (omp's `NAME_RE` rejects underscores); the `elon_ko` underscore survives only in the installer filename (an OS path, not omp-validated).
+
+### Migration
+
+Existing installs registered under the old names must be migrated. GitHub auto-redirects the old `rokicool/omp-agent-template` URLs (clone, raw, archive) to `rokicool/elon-ko`, so old tag/release tarballs keep resolving — but the omp plugin keys have changed, so re-register:
+
+```bash
+# 1. Remove the OLD plugin registrations (no-ops if already gone).
+omp plugin uninstall omp-agent-gate || true
+omp plugin uninstall orchestrator-agents@omp-agent-template || true
+omp plugin marketplace remove omp-agent-template || true
+
+# 2. Re-install under the NEW names (stable, latest):
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash
+#   → registers marketplace @elon-ko, installs elon-ko-gate + elon-ko-agents@elon-ko
+```
+
+The one-line installer (`elon_ko.sh`) now uninstalls `elon-ko-gate` (the new key) before each pinned install, mirroring the prior `DependencyLoop` handling — so re-running it over an old install cleanly migrates. To pin Plugin A to a specific tag, pass `OMP_AGENT_REF=v2.0.0`.
+
 ## [v1.8.0] - 2026-06-27
 
 ### Added

@@ -36,8 +36,8 @@ A user reply whose trimmed value is exactly `.` is treated as explicit agreement
 - Whitespace tolerance is intended: `". "` and `" ."` also match (the comparison uses `trim()`).
 - Enforcement note: the `dot-agreement` extension guarantees the pending-ask context is surfaced on the `.` turn (a hard hook), but cannot dictate the model's exact wording — this is the strongest feasible enforcement for LLM-input semantics.
 
-> This is the bundled default shipped with the `omp-agent-gate` plugin. A project-local
+> This is the bundled default shipped with the `elon-ko-gate` plugin. A project-local
 > `<cwd>/.omp/APPEND_SYSTEM.md` overrides it. It is re-injected by the extension as an
 > **advisory** session-framing message (no oh-my-pi API yields a true system-prompt append);
 > the hard enforcement that makes the orchestrator contract stick is the `tool_call` gate
-> (this plugin) plus agent `tools:`/`spawns:` frontmatter (the `orchestrator-agents` plugin).
+> (this plugin) plus agent `tools:`/`spawns:` frontmatter (the `elon-ko-agents` plugin).

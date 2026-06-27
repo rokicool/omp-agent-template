@@ -83,7 +83,7 @@ test("R1.1: buildDotInjection('.', pending) names the ask and its summary", () =
 
     const msg = buildDotInjection(".", pending);
     notEqual(msg, null);
-    equal(msg!.customType, "omp-agent-gate:dot-agreement");
+    equal(msg!.customType, "elon-ko-gate:dot-agreement");
     equal(msg!.display, false);
     equal(msg!.attribution, "user");
     match(msg!.content, /PA-1/);
@@ -212,7 +212,7 @@ test("R1.5: buildDotInjection('.', null) tells Elon to ask the user", () => {
   const msg = buildDotInjection(".", null);
   notEqual(msg, null);
   ok(/no pending/i.test(msg!.content) || /ask/i.test(msg!.content), "must prompt for clarification");
-  equal(msg!.customType, "omp-agent-gate:dot-agreement");
+  equal(msg!.customType, "elon-ko-gate:dot-agreement");
 });
 
 // ---------------------------------------------------------------------------
