@@ -13,29 +13,34 @@ allow promotion of an idea into the FULL workflow.
 FULL: REQUEST → GRILL → RESEARCH → SPEC → DEVELOP ⇄ VALIDATE → DONE
 
 ## Current Phase
-**SPEC** — LeadDev producing `.app/SPEC.md` from REQ.md + RESEARCH.md. (PA-1
-accepted: §6 assumptions stand as input, §6.8 refined to `.omp/elon.json`.)
+**DEVELOP** — LeadDev implementing per `.app/SPEC.md` (delegates coding to
+MidDev). SPEC gate committed; all U1–U9 resolved, AC1–AC14 mapped.
 
 ## Resolved Requirements (GRILL round 1 — user-confirmed)
-- **A. Capture:** BOTH — user (NL phrase or `/idea`) + agents (guarded proactive parking). Immediate ack.
-- **B. Storage:** single `.app/IDEAS.md`, append-style; writes owned by DocWorm. *(Verified: no agent-definition edit needed — DocWorm frontmatter already permits write, RESEARCH F5.2.)*
-- **C. Reminder:** proactive one-line pointer on relatedness (keyword/tag overlap, capped 1–2) + on-demand `/ideas`; opt-out.
-- **D. Enforcement:** advisory prose in `skill://elon` + turn-start hard hook = `before_agent_start` `{message}` injection (RESEARCH F2.2/R2). Advisory layer is protocol prose only (U7).
-- **E. Lifecycle:** Ideas distinct from Pending Asks; promotable into a fresh `REQ.md` (`status=promoted`, kept for audit). Separate file/parser/customType (F3.3).
+- **A. Capture:** BOTH — user (NL/`/idea`) + agents (guarded proactive parking). Immediate ack.
+- **B. Storage:** single `.app/IDEAS.md`, append-style; writes owned by DocWorm (no frontmatter change — F5.2).
+- **C. Reminder:** proactive one-line pointer (keyword/tag overlap, capped 1–2) + `/ideas`; opt-out.
+- **D. Enforcement:** advisory prose in `skill://elon` + turn-start hard hook (`before_agent_start` `{message}`).
+- **E. Lifecycle:** Ideas distinct from Pending Asks; promotable into a fresh `REQ.md` (`status=promoted`, kept for audit).
 
-## §6 assumptions — ACCEPTED as SPEC input (PA-1 agreed)
-§6.1–§6.7, §6.9–§6.10 as written in `.app/REQ.md`. **§6.8 refined:** opt-out lives
-in `.omp/elon.json` (`ideas.reminders:false`) + env `OMP_IDEA_REMINDERS=0` (RESEARCH R4).
-
-## RESEARCH — key facts (for SPEC)
-New `src/*.ts` in `package.json#omp.extensions` + `import {optedIn}` (F1.x); reminder hook `before_agent_start`→`{message:{customType:"elon-ko-gate:idea-reminder",…}}` (F2.2); `.app/IDEAS.md` auto-tracked (F3.1); parser mirrors `mostRecentPendingAsk` (F3.3); DocWorm writes / extension reads via `fs` / Elon `[PROTO]`-commits (F5.x); zero deps (U3/U9); atomic temp+`fs.rename` (U4). SPEC resolves U1 (grammar), U2 (opt-out key), U5 (cadence mid-workflow), U6 (customType), U8 (`/idea` write routing).
+## SPEC — key design decisions (locked)
+- Module: **`src/idea-storage.ts`** (Plugin A); `import {optedIn}`; dormancy parity; type/runtime split (F1.2); zero deps.
+- customTypes: `elon-ko-gate:idea-reminder`, `elon-ko-gate:idea-capture`.
+- Hook: `before_agent_start` (user turns only) → inject ≤2 parked-idea matches as hidden advisory framing.
+- Grammar: fenced `idea` blocks under `## Ideas`; tolerant `parseIdeas` mirrors `mostRecentPendingAsk`.
+- Opt-out: `.omp/elon.json` `{ideas:{reminders:false}}` + `OMP_IDEA_REMINDERS=0` (§6.8 refined).
+- Capture: `/idea` command handler steers Elon (no fs write); Elon acks → delegates DocWorm append.
+- File change set: `src/idea-storage.ts`, `src/idea-storage.test.ts`, `package.json` (omp.extensions), `plugins/agents/skills/elon/SKILL.md` (`<idea_storage>` block), `src/append-system.default.md` (companion), `.app/IDEAS.md` (runtime by DocWorm).
+- Residual risks for DEVELOP: **R-U4** (verify omp `write` atomicity; fail-safe parser is backstop), **R-U8** (confirm `sendMessage` from command handler fires continuation turn; fallback = NL-only `/idea`).
 
 ## Phase Log
 - 2026-06-27 REQUEST — classified FULL, created PROJECT.md, routed to ReqGuru.
 - 2026-06-27 GRILL r1 — 5-fork batch relayed; user resolved all five.
-- 2026-06-27 GRILL gate — `.app/REQ.md` written + committed `[PROTO]` (dc2fbb5).
-- 2026-06-27 RESEARCH gate — `.app/RESEARCH.md` written + committed `[PROTO]` (c27854b); forks feasible.
-- 2026-06-27 SPEC — PA-1 accepted (assumptions as input); LeadDev delegated to produce `.app/SPEC.md`.
+- 2026-06-27 GRILL gate — `.app/REQ.md` committed `[PROTO]` (dc2fbb5).
+- 2026-06-27 RESEARCH gate — `.app/RESEARCH.md` committed `[PROTO]` (c27854b).
+- 2026-06-27 PA-1 — agreed (assumptions as SPEC input) `[PROTO]` (39724f9).
+- 2026-06-27 SPEC gate — `.app/SPEC.md` written by LeadDev; committed `[PROTO]`.
+- 2026-06-27 DEVELOP — LeadDev delegated to implement per SPEC (→ MidDev).
 
 ## Pending Asks
-- [PA-1] 2026-06-27 origin=elon status=agreed | "Accept §6 assumptions + proceed to SPEC." (accepted via continue-directive; §6.8 refined per RESEARCH)
+- [PA-1] 2026-06-27 origin=elon status=agreed | "Accept §6 assumptions + proceed to SPEC." (accepted; §6.8 refined per RESEARCH)
