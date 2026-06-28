@@ -1,6 +1,6 @@
 # PROJECT — Release the `wrapper` agent hire
 
-## Status: RELEASE PENDING — registration done; release blocked on session reload
+## Status: RELEASE PENDING — reload path chosen; awaiting extension reload to enable `wrapper` spawn
 
 ## Request
 Dogfood the newly-hired `wrapper` release-engineering agent to commit, push, and
@@ -19,32 +19,35 @@ FULL (release-engineering close-out) → terminal agent: `wrapper`.
 - 2026-06-28 — User chose "Register wrapper first" (over the leaddev fallback).
 - 2026-06-28 — HR closed the gap: edited `src/enforce-orchestrator.ts`, added
   `"wrapper"` to the `TEAM` const array (now 7 entries). Re-read verified; no tests
-  broken (test file asserts no TEAM-membership). Advisory `scaffold/AGENTS.md` spawns
-  list left unedited (advisory template, not enforcement — out of scope).
+  broken. Advisory `scaffold/AGENTS.md` spawns list left unedited (advisory, not enforcement).
 - 2026-06-28 — CONFIRMED by HR: `TEAM` is a module-level const evaluated once at
   extension load (line ~68); the change takes effect ONLY after a reload
   (session restart / `omp reload` / plugin re-link). Elon CANNOT spawn `wrapper`
-  in the current running session. The per-spawn check (line ~166) reads array content
-  frozen at load.
+  in the pre-reload running session.
+- 2026-06-28 — [PROTO] commit `7c74e45` recorded registration + release-pending state.
+- 2026-06-28 — PA-1 RESOLVED: user chose "Reload, then wrapper" (true dogfood over the
+  leaddev fallback). Next: user reloads the extension/plugin; on the first post-reload
+  turn Elon spawns `wrapper` to execute the release plan below.
 
 ## Uncommitted changes to release (working tree)
 - `.omp/agents/wrapper.md` (untracked) — wrapper agent definition
 - `.agents/skills/wrapper/SKILL.md` (untracked) — wrapper skill
 - `src/enforce-orchestrator.ts` (modified) — `wrapper` added to enforced `TEAM` allowlist
-- Branch is ahead of `origin/main` (the [PROTO] commit + prior local commits) — push pending.
+- Branch is ahead of `origin/main` (the two [PROTO] commits + prior local commits) — push pending.
 
-## Release plan (via `wrapper`, after reload)
+## Release plan (via `wrapper`, on the first post-reload turn)
 1. `wrapper` commits the three deliverable/fix files (descriptive, conventional messages).
 2. Version bump per Conventional Commits → semver (new agent = feat → minor, unless the
    repo's version history indicates otherwise); doc-version verification.
 3. Push all pending commits; auto-detect platform via `git remote` (gh + glab).
-4. Release branch + CI; PR/MR (minor → auto-merge per the PA-2 decision); tag + release;
+4. Release branch + CI; PR/MR (minor → auto-merge per the PA-2 hire decision); tag + release;
    local-main sync.
 5. Escalate to Elon for anything outside release-engineering scope.
 
-## Next action
-User decision required (PA-1): reload to enable `wrapper` spawn (true dogfood), or fall
-back to `leaddev` for the release now (no reload, but not dogfooding `wrapper`).
+## Next action (post-reload)
+Elon spawns `wrapper` (now permitted — `TEAM` includes `wrapper` after reload) with this
+release plan. Do NOT re-ask PA-1 — the reload path is agreed.
 
 ## Pending Asks
-- [PA-1] 2026-06-28T00:00:00Z origin=elon status=pending | "Reload the session/plugin to enable `wrapper` spawn (then Elon runs the release through wrapper), or fall back to `leaddev` to do the release now without a reload?"
+- [PA-1] 2026-06-28T00:00:00Z origin=elon status=agreed | "Reload to dogfood `wrapper`, or
+  fall back to `leaddev`?" → RESOLVED: reload path chosen.
