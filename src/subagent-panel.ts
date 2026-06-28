@@ -70,6 +70,30 @@ const PERSISTENT_PANEL = process.env.OMP_SUBAGENT_PANEL_PERSIST === "1";
 
 /** Stable widget key used with ctx.ui.setWidget. */
 const PANEL_KEY = "omp-subagent-panel";
+/**
+ * macOS US-keyboard Option+<letter> compositions that resolve to a single
+ * precomposed Unicode char (e.g. Option+S = "ß" U+00DF). On macOS terminals
+ * that ship with Option NOT treated as Alt — the Ghostty and Terminal.app
+ * defaults — these composed bytes are what stdin actually receives on
+ * Option+<letter>, NOT an "alt+<x>" key event. Dead-key letters
+ * (e/i/k/n/u, which emit combining marks) are omitted.
+ */
+const MACOS_OPTION_COMPOSE: Record<string, string> = {
+  a: "å", b: "∫", c: "ç", d: "∂", f: "ƒ", g: "©", h: "˙", j: "∆", l: "¬",
+  m: "µ", o: "ø", p: "π", q: "œ", r: "®", s: "ß", t: "†", v: "√", w: "∑",
+  x: "≈", y: "¥", z: "Ω",
+};
+
+/**
+ * If `keyId` is a bare "alt+<letter>" whose macOS Option composition yields a
+ * single precomposed char, return that char; otherwise undefined. Only a plain
+ * alt+letter toggle has a recoverable composed byte — combos like "ctrl+alt+s"
+ * have no single precomposed form.
+ */
+export function macosOptionComposedFor(keyId: string): string | undefined {
+  const m = /^alt\+([a-z])$/.exec(keyId);
+  return m ? MACOS_OPTION_COMPOSE[m[1]] : undefined;
+}
 
 // ---------------------------------------------------------------------------
 // Data model — SPEC §5.1
@@ -722,6 +746,28 @@ export default function subagentPanel(pi: ExtensionAPI): void {
         handler: c => toggleOverlay(c),
       });
       shortcutRegistered = true; // register once per process
+    }
+
+    // macOS fallback: on default macOS terminals (Ghostty / Terminal.app, where
+    // Option is NOT treated as Alt), Option+S emits a *composed* char ("ß"
+    // U+00DF) instead of an alt key sequence. parseKey() returns null for that
+    // byte, so registerShortcut above never fires and the panel stays
+    // unreachable — the recurring "still not available" bug. Catch the composed
+    // byte on the raw terminal-input path (the same surface omp uses for
+    // enhanced-paste / focused-agent gestures) and toggle directly. Inert on
+    // every other input; alt-aware terminals are already handled above.
+    const composedToggle = macosOptionComposedFor(TOGGLE_KEY);
+    if (composedToggle !== undefined) {
+      unsubFns.push(
+        ctx.ui.onTerminalInput(data => {
+          if (!active) return undefined;
+          if (data === composedToggle) {
+            toggleOverlay(ctx);
+            return { consume: true };
+          }
+          return undefined;
+        }),
+      );
     }
 
     active = true;

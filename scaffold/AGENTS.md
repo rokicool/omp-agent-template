@@ -33,7 +33,7 @@ Escape hatch: set `OMP_BYPASS_ORCHESTRATOR=1` to disable the root guard (emergen
 
 | Agent | Defined at | Skill (protocol) | Enforced `tools` | Enforced `spawns` | Role |
 |---|---|---|---|---|---|
-| **Elon** | root session (`APPEND_SYSTEM.md` + extension) | `skill://elon` | `read, ask, todo`, `write`(.app/PROJECT.md only), `bash`(git only), `task` | `reqguru, drpe, leaddev, validator, docworm, hr` | Orchestrator — routes, gates, relays. NEVER implements. |
+| **Elon** | root session (`APPEND_SYSTEM.md` + extension) | `skill://elon` | `read, ask, todo, job, irc`, `write`(.app/PROJECT.md only), `bash`(git only), `task` | `reqguru, drpe, leaddev, validator, docworm, hr` | Orchestrator — routes, gates, relays. NEVER implements. |
 | **ReqGuru** | `plugins/agents/agents/reqguru.md` | `skill://reqguru` | `read, write, search, find, mess-send, mess-fail` | — | Requirements analyst — grill-me interviewer. |
 | **DrPe** | `plugins/agents/agents/drpe.md` | `skill://drpe` | `web_search, read, browser, edit, write, mess-send, mess-fail` | — | Super researcher — internet, APIs, deep analysis. |
 | **LeadDev** | `plugins/agents/agents/leaddev.md` | `skill://leaddev` | `read, write, edit, bash, search, find, ast_grep, ast_edit, lsp, debug, task, mess-send, mess-fail` | `middev, hr` | Architect — spec, review, integration. Delegates implementation to MidDev. |

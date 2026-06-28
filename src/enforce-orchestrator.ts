@@ -11,7 +11,7 @@
  *
  * Enforcement surface (interactive root only — `ctx.hasUI === true`, AND the
  * project has opted in — see "Opt-in" below):
- *   - read, ask, todo                                   -> allowed
+ *   - read, ask, todo, job, irc                         -> allowed
  *   - task                                              -> allowed only when
  *                                                          agent ∈ TEAM
  *   - write                                             -> allowed only for
@@ -19,7 +19,7 @@
  *   - bash                                              -> allowed only for
  *                                                          `git ...` commands
  *   - everything else (edit, ast_edit, debug, browser,
- *     eval, web_search, find, search, lsp, irc, ...)    -> blocked
+ *     eval, web_search, find, search, lsp, ...)         -> blocked
  *
  * Subagents are headless (`ctx.hasUI === false`) so this guard never fires
  * inside them — they are restricted instead by their own agent-definition
@@ -68,7 +68,7 @@ const TEAM = [
 ] as const;
 
 /** Tools the root orchestrator may call unconditionally (static lookup). */
-const ROOT_ALLOWED: Record<string, true> = { read: true, ask: true, todo: true };
+const ROOT_ALLOWED: Record<string, true> = { read: true, ask: true, todo: true, job: true, irc: true };
 
 /** Directory of this module — sibling assets (bundled APPEND_SYSTEM) live here. */
 const MODULE_DIR = (() => {
@@ -193,7 +193,7 @@ export default function enforceOrchestrator(pi: ExtensionAPI): void {
     }
 
     // Everything else (edit, ast_edit, ast_grep, debug, browser, eval,
-    // web_search, find, search, lsp, irc, resolve, ...) is out of scope for
+    // web_search, find, search, lsp, resolve, ...) is out of scope for
     // the orchestrator seat.
     return block(
       `Tool "${tool}" is not available to the root orchestrator (Elon). ` +

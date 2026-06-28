@@ -54,7 +54,7 @@ Pin `elon-ko-gate` to a release tag (Plugin B always tracks latest);
 re-running is idempotent — every step is safe to repeat:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.1.1 bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.1.2 bash
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
@@ -92,7 +92,7 @@ curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | 
 ```bash
 # 1. Plugin A — the gate + rule (installs user-wide; requires bun).
 #    Pin to a release tag. Switching the ref later needs `omp plugin uninstall elon-ko-gate` first.
-omp plugin install github:rokicool/elon-ko#v2.1.1
+omp plugin install github:rokicool/elon-ko#v2.1.2
 # local dev / linking:
 omp plugin link ./elon-ko
 
@@ -115,10 +115,12 @@ nothing until a project opts in. Precedence (highest wins):
 echo '{"enabled": true}' > .omp/elon.json   # gate active in this project only
 ```
 
-When active, your root session is Elon: it may `read`/`ask`/manage todos, spawn
-**team agents** (`reqguru`, `drpe`, `leaddev`, `validator`, `docworm`, `hr`),
-write only `.app/PROJECT.md`, and run only `git …`. Everything else (direct
-`edit`, `write`, builds, search, browse, …) is blocked — it must delegate.
+When active, your root session is Elon: it may `read`/`ask`/manage todos,
+`job` (inspect/wait on async agent jobs), `irc` (live coordination with parallel
+sibling agents — not a substitute for spawning), spawn **team agents**
+(`reqguru`, `drpe`, `leaddev`, `validator`, `docworm`, `hr`), write only
+`.app/PROJECT.md`, and run only `git …`. Everything else (direct `edit`,
+`write`, builds, search, browse, …) is blocked — it must delegate.
 Subagents are never gated by this; they're restricted by their own agent
 frontmatter.
 

@@ -1,42 +1,47 @@
-# PROJECT.md — Idea/Suggestion Storage Extension
+# PROJECT — Release Operation
 
-## Brief
-Analyze the agent-communication protocol (`skill://elon`) and design an extension
-for **ideas/suggestions storage** under `.app/`: capture worthwhile-but-out-of-
-scope work, persist it, let Elon remind the user about relevant stored ideas, and
-allow promotion of an idea into the FULL workflow.
+## Request
+Execute a release pipeline: check git status → bump version → update references → push to origin → verify pipelines green → create PR → **ask user to approve** → merge → create tag → create release.
 
 ## Classification
-**FULL** — new orchestrator-protocol extension (Plugin A code + advisory prose).
+Operational release workflow — multi-phase, with a built-in human approval gate (before merge).
+Routed to LeadDev (integration/operational execution).
 
-## Workflow Path
-FULL: REQUEST → GRILL → RESEARCH → SPEC → DEVELOP ⇄ VALIDATE → DONE (+ RELEASE)
+## Target Version: **v2.1.2 (PATCH)** — user-approved (PA-1 agreed).
 
-## Current Phase
-**DONE + RELEASED.** Extension shipped, Validator PASS (14/14 ACs), and
-**v2.1.0 released — CI green, GitHub Release published.**
+## Phases
+- [x] **REQUEST** — received; this file created.
+- [x] **RECON** — LeadDev surveyed repo.
+- [x] **GATE-1 (version)** — user selected **v2.1.2 (PATCH)** (PA-1 agreed).
+- [ ] **EXECUTE** — bump 2.1.1→2.1.2 across lockstep set + installer pin + docs + CHANGELOG; commit on branch release/v2.1.2; push branch.
+- [ ] **VERIFY** — CI green on branch; confirm branch/tag protection (B3).
+- [ ] **PR** — create PR `release/v2.1.2` → `main`.
+- [ ] **GATE-2 (merge approval)** — Elon asks user to approve the PR (explicitly requested gate).
+- [ ] **MERGE** — merge PR.
+- [ ] **TAG** — push `v2.1.2` tag (release.yml asserts tag == v + package.json#version; B6 hard constraint).
+- [ ] **RELEASE** — auto-created by release.yml on tag push.
+- [ ] **DONE**
 
-## Release v2.1.0 (semver minor — new feature)
-- Version bump lockstep `2.0.0 → 2.1.0`: `package.json`, `package-lock.json`,
-  `.omp-plugin/marketplace.json` (catalog + Plugin B), `elon_ko.sh` (installer pin),
-  `README.md`, `.DEVREADME.md`, new `CHANGELOG.md` section. Dep constraints &
-  historical entries left untouched.
-- Commit `8a6b5e4` (`chore(release): v2.1.0`), annotated tag `v2.1.0`, pushed main +
-  tag (RC=0). `.omp/` runtime state correctly excluded.
-- Pre-tag gate: `npm test` 97/97, `tsc --noEmit` exit 0.
-- CI: `ci.yml` GREEN (typecheck + validate-plugins + omp-install smoke;
-  `elon-ko-gate@2.1.0` asserted); `release.yml` GREEN (tag==version assertion,
-  built artifacts, created the Release).
-- GitHub Release (automated by `release.yml` on `v*` tag push):
-  https://github.com/rokicool/elon-ko/releases/tag/v2.1.0 — assets
-  `elon-ko-gate-2.1.0.tgz`, `elon-ko-agents-2.1.0.tar.gz`, `SHA256SUMS`.
-- Only non-fatal Node-20 deprecation warnings on `actions/*@v4` (advisory).
+## RECON Summary (LeadDev)
+- Current version: **2.1.1** everywhere (lockstep).
+- Scheme: SemVer + Keep a Changelog. Manual bump; tag-triggered publish only (release.yml).
+- 6 commits since v2.1.1; only 2 touch shipped code: aa6181c (bug fix: Option+S toggle) + 9b21189 (scoped irc tool for orchestrator gate).
+- User judged the irc grant an internal/config change → PATCH (v2.1.2), not a public feature.
+- CI: ci.yml (typecheck + validate-plugins.sh + omp install smoke + installer smoke) = merge gate. release.yml = on v* tag, asserts tag==version, builds both plugins, publishes GitHub Release.
+- Full exhaustive old→new file list: see recon artifact `agent://ReconRelease` → B_release_plan.files_to_modify_old_to_new (substitute 2.1.2 for 2.2.0).
 
-## Phase Log
-- 2026-06-27 REQUEST → GRILL (dc2fbb5) → RESEARCH (c27854b) → PA-1 (39724f9) → SPEC (9e4b0e1).
-- 2026-06-27 DEVELOP — implemented (990794e, 508b2bd, 66fe5c1, 789382e).
-- 2026-06-27 VALIDATE c1 FAIL (FAIL-1) → RESOLVE c1 (c748b6b) → VALIDATE c2 PASS (624ac50).
-- 2026-06-27 RELEASE v2.1.0 — bump + commit (8a6b5e4) + tag + push + CI green + GH Release.
+## Blockers
+- **B1** [decision]: RESOLVED — v2.1.2 (PATCH).
+- **B2** [hygiene]: dirty tree (.app/RESEARCH.md stale refs, ?? .omp/). Release commit should stage ONLY version-bump files + CHANGELOG; leave unshipped dirty paths alone.
+- **B3** [network, execution-phase]: branch/tag protection on main — LeadDev verifies via gh.
+- **B4** [network, execution-phase]: CI green on target commit — LeadDev verifies.
+- **B5** [pre-tag]: run typecheck + test + validate-plugins.sh before tagging.
+- **B6** [hard]: tag MUST == v + package.json#version; all 5 lockstep fields must agree.
 
 ## Pending Asks
-- [PA-1] 2026-06-27 origin=elon status=agreed | "Accept §6 assumptions + proceed to SPEC." (accepted)
+- [PA-1] 2026-06-28T00:00:00Z origin=elon status=agreed | "Approve release plan + version: v2.2.0 (MINOR) or v2.1.2 (PATCH)?" → **user selected v2.1.2 (PATCH)**.
+
+## Log
+- 2026-06-28 REQUEST received; PROJECT.md created; RECON routed to LeadDev.
+- 2026-06-28 RECON complete (recommended v2.2.0). GATE-1 raised as PA-1. Committed [PROTO] d06d621.
+- 2026-06-28 GATE-1: user selected v2.1.2 (PATCH). PA-1 → agreed. Routing EXECUTE→VERIFY→PR to LeadDev.
