@@ -26,14 +26,16 @@ FULL (release-engineering close-out) → terminal agent: `wrapper`.
   in the pre-reload running session.
 - 2026-06-28 — [PROTO] commit `7c74e45` recorded registration + release-pending state.
 - 2026-06-28 — PA-1 RESOLVED: user chose "Reload, then wrapper" (true dogfood over the
-  leaddev fallback). Next: user reloads the extension/plugin; on the first post-reload
-  turn Elon spawns `wrapper` to execute the release plan below.
+  leaddev fallback).
+- 2026-06-28 — [PROTO] commit `d1401b0` recorded PA-1 resolution.
+- 2026-06-28 — PA-2 raised (pending): "Spawn `wrapper` now to execute the release plan?"
+  (the post-reload trigger; a `.` reply on the next turn agrees and launches the release).
 
 ## Uncommitted changes to release (working tree)
 - `.omp/agents/wrapper.md` (untracked) — wrapper agent definition
 - `.agents/skills/wrapper/SKILL.md` (untracked) — wrapper skill
 - `src/enforce-orchestrator.ts` (modified) — `wrapper` added to enforced `TEAM` allowlist
-- Branch is ahead of `origin/main` (the two [PROTO] commits + prior local commits) — push pending.
+- Branch is ahead of `origin/main` (the three [PROTO] commits + prior local commits) — push pending.
 
 ## Release plan (via `wrapper`, on the first post-reload turn)
 1. `wrapper` commits the three deliverable/fix files (descriptive, conventional messages).
@@ -45,9 +47,10 @@ FULL (release-engineering close-out) → terminal agent: `wrapper`.
 5. Escalate to Elon for anything outside release-engineering scope.
 
 ## Next action (post-reload)
-Elon spawns `wrapper` (now permitted — `TEAM` includes `wrapper` after reload) with this
-release plan. Do NOT re-ask PA-1 — the reload path is agreed.
+On the first post-reload turn, Elon spawns `wrapper` (now permitted — `TEAM` includes
+`wrapper` after reload) with the release plan above. A `.` reply agrees to PA-2 and launches it.
 
 ## Pending Asks
 - [PA-1] 2026-06-28T00:00:00Z origin=elon status=agreed | "Reload to dogfood `wrapper`, or
   fall back to `leaddev`?" → RESOLVED: reload path chosen.
+- [PA-2] 2026-06-28T00:00:00Z origin=elon status=pending | "Spawn `wrapper` now (post-reload) to execute the full release plan — commit the 3 files, push, version bump, tag, release?"
