@@ -9,6 +9,17 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 At **v2.0.0** this project was renamed: the umbrella `omp-agent-template` → **`elon-ko`** (repo slug `rokicool/omp-agent-template` → `rokicool/elon-ko`), Plugin A `omp-agent-gate` → **`elon-ko-gate`**, Plugin B `orchestrator-agents` → **`elon-ko-agents`**, and the marketplace catalog id `@omp-agent-template` → **`@elon-ko`**. The installer keeps its filename `elon_ko.sh`. The old names in the v1.0–v1.8.0 entries below are left as a true historical record — GitHub redirects the old URLs, so existing tag/release links keep resolving. See the **Migration** notes in [v2.0.0] to upgrade.
 
+## [v2.1.2] - 2026-06-28
+
+### Fixed
+
+- **macOS `Option+S` subagent-panel toggle works again.** Pressing `Option+S` on macOS emits the composed `ß` byte (U+00DF), which bypassed omp's `registerShortcut` matcher (it listened for a distinct `Alt+S` sequence), so the full-table overlay never opened. The panel's keybinding now also recognizes the composed `ß` byte, so the toggle fires on the keystroke macOS users actually type. The persistent-widget default-off behavior introduced in `v2.1.1` is unchanged.
+
+### Changed
+
+- Version bumped to **`2.1.2`** (semver PATCH — a bug fix plus an internal/config change; no breaking changes). `package.json#version`, both `.omp-plugin/marketplace.json` version fields (`metadata.version` + `plugins[].version`), the installer default tag pin (`elon_ko.sh` `OMP_AGENT_REF`, now `v2.1.2`), the `README.md`/`.DEVREADME.md` install examples, and the `package-lock.json` root version were all bumped in lockstep to `2.1.2`.
+- Scoped `irc` coordination tool granted to the orchestrator enforcement gate (`src/enforce-orchestrator.ts`): Elon can now relay short coordination messages to live team agents (peer-to-peer, not broadcast) within the enforced tool set — a coordination-only guardrail, no ambient/broadcast messaging.
+
 ## [v2.1.1] - 2026-06-27
 
 ### Fixed
