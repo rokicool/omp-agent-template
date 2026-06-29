@@ -1,6 +1,6 @@
 {
   "name": "elon-ko-gate",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "Elon orchestrator enforcement gate + Definition-of-Done rule for oh-my-pi.",
   "license": "MIT",
   "type": "module",

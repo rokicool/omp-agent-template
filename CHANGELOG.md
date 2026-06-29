@@ -9,6 +9,20 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 At **v2.0.0** this project was renamed: the umbrella `omp-agent-template` → **`elon-ko`** (repo slug `rokicool/omp-agent-template` → `rokicool/elon-ko`), Plugin A `omp-agent-gate` → **`elon-ko-gate`**, Plugin B `orchestrator-agents` → **`elon-ko-agents`**, and the marketplace catalog id `@omp-agent-template` → **`@elon-ko`**. The installer keeps its filename `elon_ko.sh`. The old names in the v1.0–v1.8.0 entries below are left as a true historical record — GitHub redirects the old URLs, so existing tag/release links keep resolving. See the **Migration** notes in [v2.0.0] to upgrade.
 
+## [v2.2.0] - 2026-06-29
+
+### Added
+
+- **`wrapper` release-engineering agent.** A new team agent that closes the development cycle: derives the semver bump from Conventional Commits, verifies doc-version consistency, ships the release branch + CI + PR/MR + tag/release, and syncs local main. Ships with its own skill (`skill://wrapper`). The agent definition (`.omp/agents/wrapper.md`) and skill (`.agents/skills/wrapper/SKILL.md`) are committed to the repo as the durable source of record.
+
+### Fixed
+
+- **`wrapper` registered in the orchestrator spawn allowlist.** The enforced gate (`src/enforce-orchestrator.ts` `TEAM` const) now admits `wrapper`, making it spawnable under orchestrator enforcement. Previously the gate rejected `wrapper` spawn attempts as not in the allowlist.
+
+### Changed
+
+- Version bumped to **`2.2.0`** (semver MINOR — a new agent/feature; no breaking changes). `package.json#version`, both `.omp-plugin/marketplace.json` version fields (`metadata.version` + `plugins[].version`), the installer default tag pin (`elon_ko.sh` `OMP_AGENT_REF`, now `v2.2.0`), the `README.md`/`.DEVREADME.md` install examples, and the `package-lock.json` root version were all bumped in lockstep to `2.2.0`.
+
 ## [v2.1.2] - 2026-06-28
 
 ### Fixed

@@ -54,7 +54,7 @@ Pin `elon-ko-gate` to a release tag (Plugin B always tracks latest);
 re-running is idempotent — every step is safe to repeat:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.1.2 bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.2.0 bash
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
@@ -92,7 +92,7 @@ curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | 
 ```bash
 # 1. Plugin A — the gate + rule (installs user-wide; requires bun).
 #    Pin to a release tag. Switching the ref later needs `omp plugin uninstall elon-ko-gate` first.
-omp plugin install github:rokicool/elon-ko#v2.1.2
+omp plugin install github:rokicool/elon-ko#v2.2.0
 # local dev / linking:
 omp plugin link ./elon-ko
 
