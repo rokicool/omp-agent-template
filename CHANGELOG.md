@@ -9,6 +9,31 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 At **v2.0.0** this project was renamed: the umbrella `omp-agent-template` → **`elon-ko`** (repo slug `rokicool/omp-agent-template` → `rokicool/elon-ko`), Plugin A `omp-agent-gate` → **`elon-ko-gate`**, Plugin B `orchestrator-agents` → **`elon-ko-agents`**, and the marketplace catalog id `@omp-agent-template` → **`@elon-ko`**. The installer keeps its filename `elon_ko.sh`. The old names in the v1.0–v1.8.0 entries below are left as a true historical record — GitHub redirects the old URLs, so existing tag/release links keep resolving. See the **Migration** notes in [v2.0.0] to upgrade.
 
+## [Unreleased]
+
+_Nothing yet._
+
+## [v2.3.1] - 2026-06-29
+
+### Fixed
+
+- **`elon_ko.sh` ensures `unzip` is present before installing bun.** Both install paths (`omp.sh --source` and `bun.sh`) shell out to `unzip` to extract bun's archive, but a truly minimal box (fresh container/VM) may not have it — which failed the ENTIRE install with the opaque `error: unzip is required to install bun`. The installer now detects `unzip` up front and installs it via the system package manager when that can be done non-interactively (running as root, or passwordless `sudo`), or fails with a clear, actionable message naming the exact command to run. macOS ships `unzip`, so it is unaffected.
+
+## [v2.3.0] - 2026-06-29
+
+### Added
+
+- **`elon_ko.sh uninstall` mode.** A new uninstall mode removes everything elon-ko-specific from the omp install in one pass: both plugins and the marketplace under their current names, **and** the pre-v2.0.0 branding (Plugin A `omp-agent-gate`, Plugin B `orchestrator-agents`, marketplace `@omp-agent-template`) — so a machine that lived through the v2.0.0 rebrand is cleaned up completely. The elon-ko-only pre-release source cache (`~/.omp-prerelease`) is removed too. `omp` and `bun` are left in place (shared runtimes, not elon-ko-specific), and per-project opt-in markers (`.omp/elon.json`) are left untouched (user data). Every step is a tolerant no-op if already absent, so it is safe on a clean machine or a partial install.
+
+  ```bash
+  bash elon_ko.sh uninstall
+  curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash -s -- uninstall
+  ```
+
+### Fixed
+
+- **`elon_ko.sh` stable install force-refreshes the omp marketplace catalog after `marketplace add`.** `omp plugin marketplace add` reuses a previously-cached clone instead of re-fetching, so a fresh install on a machine holding a stale cached clone silently served an older `elon-ko-agents` roster (e.g. v2.1.2, 7 agents, no `wrapper`) while the git-pinned gate admitted `wrapper` — leaving `wrapper` allowed-but-undefined. Stable mode now runs `omp plugin marketplace update` after `add` so the catalog reflects current `main` HEAD; pre-release mode is unchanged (an update there would clobber the pinned tag). Installer-only; the installer is fetched from `main` HEAD, so no version bump or release is required — the v2.2.1 artifacts already contain `wrapper`.
+
 ## [v2.2.1] - 2026-06-29
 
 ### Fixed
@@ -114,31 +139,6 @@ The one-line installer (`elon_ko.sh`) now uninstalls `elon-ko-gate` (the new key
 - **Aligned all version pins/examples and the installer default to the released tag.** `package.json#version`, both `.omp-plugin/marketplace.json` version fields (`metadata.version` + `plugins[].version`), `elon_ko.sh`'s default `OMP_AGENT_REF`, and the README/`.DEVREADME.md` install examples now read `v1.8.0`.
 - **Reconciled `.gitignore` with the `.app/` commit protocol.** Re-added `.next/` (the build output that lives on disk), which had been wrongly removed; `.app/*` stays ignored with `!.app/*.md` allow-listing the protocol artifacts.
 - **Marked `.app/RESEARCH.md` as a frozen historical snapshot.** The research artifact is now annotated as a point-in-time record rather than a live document.
-
-## [Unreleased]
-
-_Nothing yet._
-
-## [v2.3.1] - 2026-06-29
-
-### Fixed
-
-- **`elon_ko.sh` ensures `unzip` is present before installing bun.** Both install paths (`omp.sh --source` and `bun.sh`) shell out to `unzip` to extract bun's archive, but a truly minimal box (fresh container/VM) may not have it — which failed the ENTIRE install with the opaque `error: unzip is required to install bun`. The installer now detects `unzip` up front and installs it via the system package manager when that can be done non-interactively (running as root, or passwordless `sudo`), or fails with a clear, actionable message naming the exact command to run. macOS ships `unzip`, so it is unaffected.
-
-## [v2.3.0] - 2026-06-29
-
-### Added
-
-- **`elon_ko.sh uninstall` mode.** A new uninstall mode removes everything elon-ko-specific from the omp install in one pass: both plugins and the marketplace under their current names, **and** the pre-v2.0.0 branding (Plugin A `omp-agent-gate`, Plugin B `orchestrator-agents`, marketplace `@omp-agent-template`) — so a machine that lived through the v2.0.0 rebrand is cleaned up completely. The elon-ko-only pre-release source cache (`~/.omp-prerelease`) is removed too. `omp` and `bun` are left in place (shared runtimes, not elon-ko-specific), and per-project opt-in markers (`.omp/elon.json`) are left untouched (user data). Every step is a tolerant no-op if already absent, so it is safe on a clean machine or a partial install.
-
-  ```bash
-  bash elon_ko.sh uninstall
-  curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash -s -- uninstall
-  ```
-
-### Fixed
-
-- **`elon_ko.sh` stable install force-refreshes the omp marketplace catalog after `marketplace add`.** `omp plugin marketplace add` reuses a previously-cached clone instead of re-fetching, so a fresh install on a machine holding a stale cached clone silently served an older `elon-ko-agents` roster (e.g. v2.1.2, 7 agents, no `wrapper`) while the git-pinned gate admitted `wrapper` — leaving `wrapper` allowed-but-undefined. Stable mode now runs `omp plugin marketplace update` after `add` so the catalog reflects current `main` HEAD; pre-release mode is unchanged (an update there would clobber the pinned tag). Installer-only; the installer is fetched from `main` HEAD, so no version bump or release is required — the v2.2.1 artifacts already contain `wrapper`.
 
 ## [v1.7.0] - 2026-06-26
 
