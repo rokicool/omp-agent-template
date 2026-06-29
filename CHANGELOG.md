@@ -117,6 +117,19 @@ The one-line installer (`elon_ko.sh`) now uninstalls `elon-ko-gate` (the new key
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [v2.3.0] - 2026-06-29
+
+### Added
+
+- **`elon_ko.sh uninstall` mode.** A new uninstall mode removes everything elon-ko-specific from the omp install in one pass: both plugins and the marketplace under their current names, **and** the pre-v2.0.0 branding (Plugin A `omp-agent-gate`, Plugin B `orchestrator-agents`, marketplace `@omp-agent-template`) — so a machine that lived through the v2.0.0 rebrand is cleaned up completely. The elon-ko-only pre-release source cache (`~/.omp-prerelease`) is removed too. `omp` and `bun` are left in place (shared runtimes, not elon-ko-specific), and per-project opt-in markers (`.omp/elon.json`) are left untouched (user data). Every step is a tolerant no-op if already absent, so it is safe on a clean machine or a partial install.
+
+  ```bash
+  bash elon_ko.sh uninstall
+  curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash -s -- uninstall
+  ```
+
 ### Fixed
 
 - **`elon_ko.sh` stable install force-refreshes the omp marketplace catalog after `marketplace add`.** `omp plugin marketplace add` reuses a previously-cached clone instead of re-fetching, so a fresh install on a machine holding a stale cached clone silently served an older `elon-ko-agents` roster (e.g. v2.1.2, 7 agents, no `wrapper`) while the git-pinned gate admitted `wrapper` — leaving `wrapper` allowed-but-undefined. Stable mode now runs `omp plugin marketplace update` after `add` so the catalog reflects current `main` HEAD; pre-release mode is unchanged (an update there would clobber the pinned tag). Installer-only; the installer is fetched from `main` HEAD, so no version bump or release is required — the v2.2.1 artifacts already contain `wrapper`.

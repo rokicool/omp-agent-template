@@ -54,7 +54,7 @@ Pin `elon-ko-gate` to a release tag (Plugin B always tracks latest);
 re-running is idempotent — every step is safe to repeat:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.2.1 bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.3.0 bash
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
@@ -92,7 +92,7 @@ curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | 
 ```bash
 # 1. Plugin A — the gate + rule (installs user-wide; requires bun).
 #    Pin to a release tag. Switching the ref later needs `omp plugin uninstall elon-ko-gate` first.
-omp plugin install github:rokicool/elon-ko#v2.2.1
+omp plugin install github:rokicool/elon-ko#v2.3.0
 # local dev / linking:
 omp plugin link ./elon-ko
 
@@ -100,6 +100,24 @@ omp plugin link ./elon-ko
 omp plugin marketplace add rokicool/elon-ko
 omp plugin install elon-ko-agents@elon-ko
 ```
+
+## Uninstall
+
+Remove everything elon-ko-specific — both plugins and the marketplace under their
+current names **and** the pre-v2.0.0 branding (`omp-agent-gate`,
+`orchestrator-agents`, marketplace `@omp-agent-template`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash -s -- uninstall
+# or, from a local clone:
+bash elon_ko.sh uninstall
+```
+
+`omp` and `bun` are left in place (shared runtimes). Per-project opt-in markers
+(`.omp/elon.json`) are user data and are not touched. The elon-ko-only
+pre-release source cache (`~/.omp-prerelease`) is removed if present. Every step
+is a tolerant no-op if already absent, so it is safe on a clean machine or one
+that only ever had the old branding.
 
 ## Switch it on (per project)
 

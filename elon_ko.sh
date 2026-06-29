@@ -11,7 +11,7 @@
 # Plugin B installed LATEST from the repo's default branch.
 #
 #   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.2.1 bash
+#   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.3.0 bash
 #
 # ── Pre-release install (pass a tag) ─────────────────────────────────────────
 # Pass a pre-release tag to pin BOTH plugins to that exact ref — for testing
@@ -24,6 +24,15 @@
 #   bash elon_ko.sh pr-dev-abc1234
 #   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash -s -- pr-dev-abc1234
 #
+#
+# ── Uninstall (pass `uninstall`) ─────────────────────────────────────────────
+# Removes everything elon-ko-specific: BOTH plugins + the marketplace under their
+# current names AND the pre-v2.0.0 branding (omp-agent-gate, orchestrator-agents,
+# marketplace @omp-agent-template), plus the elon-ko-only pre-release source cache.
+# omp and bun are left in place. Each step is a tolerant no-op if already absent.
+#
+#   bash elon_ko.sh uninstall
+#   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash -s -- uninstall
 # Works on a clean machine, in a docker container, and on a machine where an
 # earlier (stable OR pre-release) version is already installed — every step is
 # idempotent, and the marketplace is re-registered each run so it always points
@@ -35,14 +44,17 @@ MARKETPLACE="elon-ko"        # value of marketplace.json#name
 PLUGIN_B="elon-ko-agents"
 PRERELEASE_BASE="${OMP_PRERELEASE_DIR:-$HOME/.omp-prerelease}"
 
-# ── mode: a positional tag switches to pre-release (both plugins pinned) ──────
-TAG="${1:-}"
-if [ -n "$TAG" ]; then
+# ── mode: `uninstall` removes everything; a positional tag switches to
+# pre-release (both plugins pinned); otherwise a stable install.
+ARG="${1:-}"
+if [ "$ARG" = "uninstall" ]; then
+  MODE="uninstall"
+elif [ -n "$ARG" ]; then
   MODE="pre-release"
-  REF="$TAG"                            # Plugin A pinned to the tag
+  REF="$ARG"                           # Plugin A pinned to the tag
 else
   MODE="stable"
-  REF="${OMP_AGENT_REF:-v2.2.1}"        # static tag: avoids store ref-drift + network deps; OMP_AGENT_REF overrides for dev
+  REF="${OMP_AGENT_REF:-v2.3.0}"       # static tag: avoids store ref-drift + network deps; OMP_AGENT_REF overrides for dev
 fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -55,6 +67,56 @@ die()  { printf '  ✗ %s\n' "$*" >&2; exit 1; }
 # Installers drop their binaries in these dirs; put them on PATH up front so the
 # rest of THIS script can call omp/bun in the same invocation.
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+# ── uninstall mode ───────────────────────────────────────────────────────────
+# Removes everything elon-ko-specific from the omp install: BOTH plugins and the
+# marketplace under their current names AND the pre-v2.0.0 branding (the project
+# was renamed omp-agent-template → elon-ko at v2.0.0; see CHANGELOG). The
+# pre-release source cache (~/.omp-prerelease) is elon-ko-only and orphaned once
+# the marketplace is gone, so it is removed too. Every step is tolerant (|| true),
+# so a clean or partial machine is fine; omp and bun themselves are left in place
+# (shared runtimes, not elon-ko-specific). Per-project opt-in markers (.omp/elon.json)
+# are user data the installer never created, so they are left untouched.
+if [ "$MODE" = "uninstall" ]; then
+  say "Uninstalling elon-ko (current + pre-v2.0.0 branding)"
+  if ! have omp; then
+    warn "omp not found — nothing to uninstall (the plugins require omp)."
+    exit 0
+  fi
+  # current names (v2.0.0+)
+  omp plugin uninstall elon-ko-gate                >/dev/null 2>&1 || true
+  omp plugin uninstall elon-ko-agents              >/dev/null 2>&1 || true
+  omp plugin uninstall elon-ko-agents@elon-ko      >/dev/null 2>&1 || true
+  # pre-v2.0.0 branding (omp-agent-template → elon-ko)
+  omp plugin uninstall omp-agent-gate              >/dev/null 2>&1 || true
+  omp plugin uninstall orchestrator-agents         >/dev/null 2>&1 || true
+  omp plugin uninstall orchestrator-agents@omp-agent-template >/dev/null 2>&1 || true
+  # marketplaces (current + legacy)
+  omp plugin marketplace remove elon-ko            >/dev/null 2>&1 || true
+  omp plugin marketplace remove omp-agent-template >/dev/null 2>&1 || true
+  # pre-release source cache (elon-ko-only; orphaned once the marketplace is gone)
+  if [ -n "${PRERELEASE_BASE:-}" ] && [ -d "$PRERELEASE_BASE" ]; then
+    rm -rf "$PRERELEASE_BASE"
+    ok "removed pre-release source cache ($PRERELEASE_BASE)"
+  fi
+  cat <<EOF
+
+============================================================
+  elon-ko uninstalled.
+
+  Removed — current names (v2.0.0+):
+    • elon-ko-gate, elon-ko-agents, marketplace @elon-ko
+  Removed — pre-v2.0.0 branding:
+    • omp-agent-gate, orchestrator-agents, marketplace @omp-agent-template
+  Removed — pre-release source cache (if present):
+    • ${PRERELEASE_BASE:-~/.omp-prerelease}
+
+  Anything that was never installed was a silent no-op. oh-my-pi (omp) and
+  bun are left in place — they are shared runtimes, not elon-ko-specific.
+  Per-project opt-in markers (.omp/elon.json) are left untouched (user data).
+============================================================
+EOF
+  exit 0
+fi
 
 # ── oh-my-pi (omp) ───────────────────────────────────────────────────────────
 say "Checking for oh-my-pi (omp)"
@@ -100,7 +162,7 @@ if [ "$MODE" = "pre-release" ]; then
   curl -fsSL "$tarball_url" | tar -xz -C "$extract_dir" \
     || die "failed to fetch pre-release '${TAG}' from ${tarball_url} — does the tag exist?"
   # GitHub's archive extracts to a single top-level dir; resolve it dynamically
-# (its name depends on the ref — e.g. v2.2.1 → elon-ko-2.2.1).
+# (its name depends on the ref — e.g. v2.3.0 → elon-ko-2.3.0).
   MKT_SOURCE="$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d | head -n1)"
   [ -n "$MKT_SOURCE" ] && [ -f "$MKT_SOURCE/.omp-plugin/marketplace.json" ] \
     || die "pre-release '${TAG}' tarball has no marketplace (.omp-plugin/marketplace.json)"
