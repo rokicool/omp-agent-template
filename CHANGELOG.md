@@ -119,6 +119,12 @@ The one-line installer (`elon_ko.sh`) now uninstalls `elon-ko-gate` (the new key
 
 _Nothing yet._
 
+## [v2.3.1] - 2026-06-29
+
+### Fixed
+
+- **`elon_ko.sh` ensures `unzip` is present before installing bun.** Both install paths (`omp.sh --source` and `bun.sh`) shell out to `unzip` to extract bun's archive, but a truly minimal box (fresh container/VM) may not have it — which failed the ENTIRE install with the opaque `error: unzip is required to install bun`. The installer now detects `unzip` up front and installs it via the system package manager when that can be done non-interactively (running as root, or passwordless `sudo`), or fails with a clear, actionable message naming the exact command to run. macOS ships `unzip`, so it is unaffected.
+
 ## [v2.3.0] - 2026-06-29
 
 ### Added

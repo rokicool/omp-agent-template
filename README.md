@@ -40,7 +40,7 @@ that; the installer wires them up.
   extension-package; `omp` resolves its deps with `bun install`). Plugin B
   (agents + skills) is pure markdown and needs only `omp`.
 
-The one-line installer below fetches both if they're missing.
+The one-line installer below fetches all of them if they're missing — including `unzip`, which bun's installer needs (installed automatically when running as root or under passwordless `sudo`; macOS already ships it).
 
 ## Quick install (one line)
 
@@ -54,7 +54,7 @@ Pin `elon-ko-gate` to a release tag (Plugin B always tracks latest);
 re-running is idempotent — every step is safe to repeat:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.3.0 bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.3.1 bash
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
@@ -92,7 +92,7 @@ curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | 
 ```bash
 # 1. Plugin A — the gate + rule (installs user-wide; requires bun).
 #    Pin to a release tag. Switching the ref later needs `omp plugin uninstall elon-ko-gate` first.
-omp plugin install github:rokicool/elon-ko#v2.3.0
+omp plugin install github:rokicool/elon-ko#v2.3.1
 # local dev / linking:
 omp plugin link ./elon-ko
 

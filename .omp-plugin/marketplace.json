@@ -4,7 +4,7 @@
   "owner": { "name": "elon-ko" },
   "metadata": {
     "description": "Elon multi-agent orchestrator roster + skills for oh-my-pi.",
-    "version": "2.3.0",
+    "version": "2.3.1",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -13,7 +13,7 @@
       "description": "8-agent orchestrator roster + 9 skills.",
       "source": "./agents",
       "category": "development",
-      "version": "2.3.0",
+      "version": "2.3.1",
       "agents": ["hr", "docworm", "drpe", "leaddev", "middev", "reqguru", "validator", "wrapper"],
       "homepage": "https://github.com/rokicool/elon-ko"
     }

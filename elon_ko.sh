@@ -11,7 +11,7 @@
 # Plugin B installed LATEST from the repo's default branch.
 #
 #   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.3.0 bash
+#   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.3.1 bash
 #
 # ── Pre-release install (pass a tag) ─────────────────────────────────────────
 # Pass a pre-release tag to pin BOTH plugins to that exact ref — for testing
@@ -54,7 +54,7 @@ elif [ -n "$ARG" ]; then
   REF="$ARG"                           # Plugin A pinned to the tag
 else
   MODE="stable"
-  REF="${OMP_AGENT_REF:-v2.3.0}"       # static tag: avoids store ref-drift + network deps; OMP_AGENT_REF overrides for dev
+  REF="${OMP_AGENT_REF:-v2.3.1}"       # static tag: avoids store ref-drift + network deps; OMP_AGENT_REF overrides for dev
 fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -118,6 +118,45 @@ EOF
   exit 0
 fi
 
+# ── unzip (required by the bun installer) ────────────────────────────────────
+# Both install paths below pull in bun — omp.sh (--source) and bun.sh — and
+# bun's installer shells out to `unzip` to extract its archive. A truly minimal
+# box (fresh container/VM) may lack unzip, which fails the WHOLE install with
+# "error: unzip is required to install bun". Detect it up front and install it
+# via the system package manager when that can be done non-interactively (root,
+# or passwordless sudo); otherwise fail with a clear, actionable message rather
+# than letting bun's installer fail opaquely mid-stream. (macOS ships unzip.)
+say "Checking for unzip (required by the bun installer)"
+if have unzip; then
+  ok "unzip present"
+else
+  warn "unzip not found — attempting to install via the system package manager"
+  unzip_ok=0
+  if [ "$(id -u)" -eq 0 ]; then
+    # root (container/VM) — no sudo needed
+    if   have apt-get; then apt-get update -qq && apt-get install -y unzip && unzip_ok=1 || true
+    elif have dnf;     then dnf install -y unzip && unzip_ok=1 || true
+    elif have yum;     then yum install -y unzip && unzip_ok=1 || true
+    elif have apk;     then apk add --no-cache unzip && unzip_ok=1 || true
+    fi
+  elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+    # passwordless sudo (a non-interactive `curl|bash` can't type a sudo password)
+    if   have apt-get; then sudo apt-get update -qq && sudo apt-get install -y unzip && unzip_ok=1 || true
+    elif have dnf;     then sudo dnf install -y unzip && unzip_ok=1 || true
+    elif have yum;     then sudo yum install -y unzip && unzip_ok=1 || true
+    elif have apk;     then sudo apk add --no-cache unzip && unzip_ok=1 || true
+    fi
+  elif have brew; then
+    # macOS/Homebrew user-local install — no sudo
+    brew install unzip && unzip_ok=1 || true
+  fi
+  if [ "$unzip_ok" -ne 1 ] || ! have unzip; then
+    die "unzip is required (the bun installer needs it to extract its archive) and could not be installed automatically. Install it manually and re-run, e.g.:
+  apt-get install -y unzip   |   dnf install -y unzip   |   apk add unzip   |   brew install unzip"
+  fi
+  ok "unzip installed"
+fi
+
 # ── oh-my-pi (omp) ───────────────────────────────────────────────────────────
 say "Checking for oh-my-pi (omp)"
 if have omp; then
@@ -162,7 +201,7 @@ if [ "$MODE" = "pre-release" ]; then
   curl -fsSL "$tarball_url" | tar -xz -C "$extract_dir" \
     || die "failed to fetch pre-release '${TAG}' from ${tarball_url} — does the tag exist?"
   # GitHub's archive extracts to a single top-level dir; resolve it dynamically
-# (its name depends on the ref — e.g. v2.3.0 → elon-ko-2.3.0).
+# (its name depends on the ref — e.g. v2.3.1 → elon-ko-2.3.1).
   MKT_SOURCE="$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d | head -n1)"
   [ -n "$MKT_SOURCE" ] && [ -f "$MKT_SOURCE/.omp-plugin/marketplace.json" ] \
     || die "pre-release '${TAG}' tarball has no marketplace (.omp-plugin/marketplace.json)"
