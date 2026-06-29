@@ -9,6 +9,16 @@ and this project aims to adhere to [Semantic Versioning](https://semver.org/spec
 
 At **v2.0.0** this project was renamed: the umbrella `omp-agent-template` → **`elon-ko`** (repo slug `rokicool/omp-agent-template` → `rokicool/elon-ko`), Plugin A `omp-agent-gate` → **`elon-ko-gate`**, Plugin B `orchestrator-agents` → **`elon-ko-agents`**, and the marketplace catalog id `@omp-agent-template` → **`@elon-ko`**. The installer keeps its filename `elon_ko.sh`. The old names in the v1.0–v1.8.0 entries below are left as a true historical record — GitHub redirects the old URLs, so existing tag/release links keep resolving. See the **Migration** notes in [v2.0.0] to upgrade.
 
+## [v2.2.1] - 2026-06-29
+
+### Fixed
+
+- **`wrapper` is now published in the `elon-ko-agents` marketplace plugin (completing the v2.2.0 announcement).** v2.2.0 announced the `wrapper` release-engineering agent and committed its source-of-record (`.omp/agents/wrapper.md` + `.agents/skills/wrapper/SKILL.md`), but the agent definition and skill were never copied into the PUBLISHED plugin tree (`plugins/agents/`), and `wrapper` was absent from the marketplace's declared `agents[]`. External users installing `v2.2.0` therefore did not receive `wrapper`, even though the changelog advertised it. This release closes that gap: `plugins/agents/agents/wrapper.md` and `plugins/agents/skills/wrapper/SKILL.md` now ship, `wrapper` is registered in `.omp-plugin/marketplace.json` `agents[]` (the roster is now 8 agents + 9 skills), and the agent-count labels across `README.md`, `.DEVREADME.md`, `elon_ko.sh`, `release.yml`, and `scaffold/AGENTS.md` are corrected to match. v2.2.0 passed `scripts/validate-plugins.sh` only because `wrapper` was undeclared — the validator now sees 8 declared agents, all present with valid `name`/`description` frontmatter.
+
+### Changed
+
+- Version bumped to **`2.2.1`** (semver PATCH — repairing the missing published file omitted from v2.2.0; no breaking changes). The `wrapper` feature's MINOR bump was already taken at v2.2.0, so this PATCH completes that promise rather than re-issuing a MINOR (which would double-count one feature across two versions). `package.json#version`, both `.omp-plugin/marketplace.json` version fields (`metadata.version` + `plugins[].version`), the installer default tag pin (`elon_ko.sh` `OMP_AGENT_REF`, now `v2.2.1`), the `README.md`/`.DEVREADME.md` install examples, and the `package-lock.json` root version were all bumped in lockstep to `2.2.1`.
+
 ## [v2.2.0] - 2026-06-29
 
 ### Added
