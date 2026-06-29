@@ -17,7 +17,7 @@ Two plugins, installed together:
 | Plugin | What it provides |
 |---|---|
 | **`elon-ko-gate`** | The enforcement **gate** (the root session can only route — direct `edit`/`write`/build are hard-blocked), a Definition-of-Done rule. |
-| **`elon-ko-agents`** | **7 specialist agents** + **8 skills**: `reqguru`, `drpe`, `leaddev`, `middev`, `validator`, `docworm`, `hr` (plus the `elon` orchestrator protocol). |
+| **`elon-ko-agents`** | **8 specialist agents** + **9 skills**: `reqguru`, `drpe`, `leaddev`, `middev`, `validator`, `docworm`, `hr`, `wrapper` (plus the `elon` orchestrator protocol). |
 
 oh-my-pi has two disjoint plugin mechanisms — TypeScript extensions vs. agent
 marketplaces — so this repo ships **both from one tree**. You don't deal with
@@ -54,7 +54,7 @@ Pin `elon-ko-gate` to a release tag (Plugin B always tracks latest);
 re-running is idempotent — every step is safe to repeat:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.2.0 bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.2.1 bash
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
@@ -92,7 +92,7 @@ curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | 
 ```bash
 # 1. Plugin A — the gate + rule (installs user-wide; requires bun).
 #    Pin to a release tag. Switching the ref later needs `omp plugin uninstall elon-ko-gate` first.
-omp plugin install github:rokicool/elon-ko#v2.2.0
+omp plugin install github:rokicool/elon-ko#v2.2.1
 # local dev / linking:
 omp plugin link ./elon-ko
 
@@ -118,7 +118,7 @@ echo '{"enabled": true}' > .omp/elon.json   # gate active in this project only
 When active, your root session is Elon: it may `read`/`ask`/manage todos,
 `job` (inspect/wait on async agent jobs), `irc` (live coordination with parallel
 sibling agents — not a substitute for spawning), spawn **team agents**
-(`reqguru`, `drpe`, `leaddev`, `validator`, `docworm`, `hr`), write only
+(`reqguru`, `drpe`, `leaddev`, `validator`, `docworm`, `hr`, `wrapper`), write only
 `.app/PROJECT.md`, and run only `git …`. Everything else (direct `edit`,
 `write`, builds, search, browse, …) is blocked — it must delegate.
 Subagents are never gated by this; they're restricted by their own agent

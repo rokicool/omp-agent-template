@@ -4,14 +4,14 @@
 #
 # Ensures oh-my-pi (`omp`) and bun are present, then installs BOTH plugins:
 #   • elon-ko-gate        — Elon orchestrator enforcement gate (needs bun)
-#   • elon-ko-agents   — 7 agents + 8 skills (marketplace)
+#   • elon-ko-agents   — 8 agents + 9 skills (marketplace)
 #
 # ── Stable install (no argument) ─────────────────────────────────────────────
 # Plugin A pinned to the release tag below (override with OMP_AGENT_REF);
 # Plugin B installed LATEST from the repo's default branch.
 #
 #   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.2.0 bash
+#   curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.2.1 bash
 #
 # ── Pre-release install (pass a tag) ─────────────────────────────────────────
 # Pass a pre-release tag to pin BOTH plugins to that exact ref — for testing
@@ -42,7 +42,7 @@ if [ -n "$TAG" ]; then
   REF="$TAG"                            # Plugin A pinned to the tag
 else
   MODE="stable"
-  REF="${OMP_AGENT_REF:-v2.2.0}"        # static tag: avoids store ref-drift + network deps; OMP_AGENT_REF overrides for dev
+  REF="${OMP_AGENT_REF:-v2.2.1}"        # static tag: avoids store ref-drift + network deps; OMP_AGENT_REF overrides for dev
 fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -100,7 +100,7 @@ if [ "$MODE" = "pre-release" ]; then
   curl -fsSL "$tarball_url" | tar -xz -C "$extract_dir" \
     || die "failed to fetch pre-release '${TAG}' from ${tarball_url} — does the tag exist?"
   # GitHub's archive extracts to a single top-level dir; resolve it dynamically
-# (its name depends on the ref — e.g. v2.2.0 → elon-ko-2.2.0).
+# (its name depends on the ref — e.g. v2.2.1 → elon-ko-2.2.1).
   MKT_SOURCE="$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d | head -n1)"
   [ -n "$MKT_SOURCE" ] && [ -f "$MKT_SOURCE/.omp-plugin/marketplace.json" ] \
     || die "pre-release '${TAG}' tarball has no marketplace (.omp-plugin/marketplace.json)"
@@ -146,7 +146,7 @@ if [ "$MODE" = "pre-release" ]; then
 
   Both plugins are pinned to tag '${TAG}':
     • elon-ko-gate         — gate + Definition-of-Done rule
-    • elon-ko-agents    — 7 agents + 8 skills (from the tag, not latest)
+    • elon-ko-agents    — 8 agents + 9 skills (from the tag, not latest)
 
   Plugin B was registered as a LOCAL marketplace from:
     ${MKT_SOURCE}
@@ -167,7 +167,7 @@ else
 
   Plugins:
     • elon-ko-gate         — gate + Definition-of-Done rule
-    • elon-ko-agents    — 7 agents + 8 skills (always latest)
+    • elon-ko-agents    — 8 agents + 9 skills (always latest)
 
   The gate is dormant until a project opts in:
     echo '{"enabled": true}' > .omp/elon.json
