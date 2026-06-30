@@ -44,7 +44,9 @@ The one-line installer below fetches all of them if they're missing — includin
 
 ## Quick install (one line)
 
-Installs `omp` and `bun` if missing, then **both** plugins:
+This is the **global** install (the default): it puts `omp`, `bun`, and both plugins under your home directory (`~/.local/bin`, `~/.bun`, `~/.omp`) so they're available across every project. Installs `omp` and `bun` if missing, then **both** plugins:
+
+> Want everything under the current project instead — nothing under `~/.omp`, no shell-rc edits? See **Local install (`-local`)** below.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | bash
@@ -58,6 +60,68 @@ curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | 
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
+
+## Local install (`-local`)
+
+Add `-local` (or `--local`) to install **everything** under the current project's `./.elon-ko/` and write **nothing** outside it — no `~/.omp`, no `~/.local/bin`, no `~/.bun`, no shell-rc edits. It's a self-contained, throwaway omp home: its own vendored `omp`/`bun`, its own plugins and marketplace registry, and (because it relocates omp's entire home) its own auth and sessions. Delete the whole thing with one `rm -rf .elon-ko`.
+
+```bash
+bash elon_ko.sh -local          # from a local clone, in the project root
+```
+
+There is **no** `-global` flag: omitting `-local` means global (the default). Flags are position-agnostic — `bash elon_ko.sh --local` and `bash elon_ko.sh -local <tag>` work too.
+
+**What lands where.** Everything sits under `./.elon-ko/`:
+
+```
+.elon-ko/
+  bin/                    # vendored omp + bun binaries
+  omp/plugins/            # Plugin A (elon-ko-gate) + Plugin B (elon-ko-agents)
+  omp/natives/<ver>/      # omp's native runtime module
+  marketplaces.json       # omp marketplace registry (config root)
+  env.sh                  # REQUIRED activation script (see below)
+  .install.json           # install marker (mode=local, ref, paths)
+```
+
+**Activation is REQUIRED — PATH alone is not enough.** A LOCAL install is **not** added to your PATH automatically (nothing global may be touched). In every shell where you want to use it, source the activation script from the project root:
+
+```bash
+source ./.elon-ko/env.sh
+```
+
+`env.sh` exports **five** variables:
+
+| Variable | What it relocates |
+|---|---|
+| `PI_CONFIG_DIR` | omp's **config root** — where `marketplaces.json` lives. |
+| `XDG_DATA_HOME` | omp's **data category** — the native runtime module and plugins live under `$XDG_DATA_HOME/omp/`. |
+| `PATH` | Prepends `.elon-ko/bin` so the vendored `omp`/`bun` resolve first. |
+| `BUN_INSTALL` | The vendored bun's install dir. |
+| `PI_INSTALL_DIR` | Where omp writes its own binary (`.elon-ko/bin`). |
+
+**Why both `PI_CONFIG_DIR` and `XDG_DATA_HOME`?** `PI_CONFIG_DIR` relocates the config root but **not** the native runtime module: omp's native loader ignores `PI_CONFIG_DIR` and only honors `XDG_DATA_HOME`. Set only `PI_CONFIG_DIR` and a later bare `omp` call loads its native module from `~/.omp/natives/` — leaking into the global install and running native-version cleanup against the global dir, which can delete the global omp's native versions. **Both knobs are required**, which is why you must `source env.sh` rather than just prepending `PATH`.
+
+**Uninstall (mode-scoped).** LOCAL and GLOBAL use disjoint directories and can coexist — uninstalling one never touches the other:
+
+```bash
+bash elon_ko.sh -local uninstall    # removes ONLY ./.elon-ko/ (global install untouched)
+bash elon_ko.sh uninstall           # removes the GLOBAL install (local install untouched)
+```
+
+Install one mode while the other already exists and the installer prints a one-line notice; neither removes the other.
+
+**Pre-release (per mode).** Pass a tag to pin **both** plugins to that exact ref — Plugin B is fetched as the tag's source tarball and registered as a local marketplace (kept in place):
+
+```bash
+bash elon_ko.sh -local pr-dev-abc1234    # LOCAL pre-release → kept under ./.elon-ko/prerelease/
+bash elon_ko.sh pr-dev-abc1234           # GLOBAL pre-release → kept under ~/.omp-prerelease/
+```
+
+**Caveats.**
+
+- **Separate auth.** A LOCAL omp has its **own** auth and sessions under `./.elon-ko/` — it does **not** share credentials with a global omp. The first `omp` run in the project will need to authenticate (or you can copy credentials from the global install, `~/.omp/agent`).
+- **`XDG_DATA_HOME` is shell-wide.** Sourcing `env.sh` sets `XDG_DATA_HOME=$PWD/.elon-ko`, which redirects the data directory of **every** XDG-aware tool in that shell — not just omp. This is intentional and required for the LOCAL isolation to hold. (GLOBAL installs never set `XDG_DATA_HOME`, so they're unaffected.) Source `env.sh` only in shells dedicated to the project; `unset XDG_DATA_HOME` (and the other four vars it exports) returns the shell to normal.
+- **Baked absolute paths.** `env.sh` records install-time absolute paths. If you move or rename the project directory, re-run `bash elon_ko.sh -local` to regenerate it. Don't edit `env.sh` by hand.
 
 ## Testing a pre-release
 
@@ -102,6 +166,8 @@ omp plugin install elon-ko-agents@elon-ko
 ```
 
 ## Uninstall
+
+This is the **GLOBAL** uninstall — it removes the install under `~/.omp`. To remove a **LOCAL** install instead, run `bash elon_ko.sh -local uninstall` (see **Local install (`-local`)** above). The two are mode-scoped: uninstalling one leaves the other untouched.
 
 Remove everything elon-ko-specific — both plugins and the marketplace under their
 current names **and** the pre-v2.0.0 branding (`omp-agent-gate`,
@@ -233,6 +299,8 @@ A live view of the subagents your orchestrator spawns. The `subagent-panel` exte
 
 ## FAQ
 
+- **Global or local install?** The default (`bash elon_ko.sh`) is **global**: `omp`, `bun`, and both plugins live under your home dir and are shared across every project. `bash elon_ko.sh -local` installs everything under the current project's `./.elon-ko/` and writes nothing outside it; activate it per shell with `source ./.elon-ko/env.sh`. See **Local install (`-local`)** above for the layout, activation, and caveats.
+- **My local `omp` asks me to log in even though I'm logged in globally.** A LOCAL install has its own auth and sessions — it relocates omp's entire home. Authenticate once in the project, or copy credentials from the global install (`~/.omp/agent`).
 - **Do I need bun?** Only for Plugin A (`elon-ko-gate`). Plugin B is pure
   markdown. The one-line installer adds bun if missing.
 - **Is anything enforced before I opt in?** No. The gate is dormant until

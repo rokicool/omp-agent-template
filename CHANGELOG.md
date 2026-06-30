@@ -11,7 +11,13 @@ At **v2.0.0** this project was renamed: the umbrella `omp-agent-template` → **
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **`elon_ko.sh` LOCAL install mode (`-local`).** A new install mode puts the entire install — vendored `omp` and `bun`, both plugins, the marketplace registry, and omp's relocated home — under the current project's `./.elon-ko/` and writes **nothing** outside it (no `~/.omp`, no `~/.local/bin`, no `~/.bun`, no shell-rc edits). LOCAL and GLOBAL installs use disjoint directories and coexist; each has its own mode-scoped uninstall (`bash elon_ko.sh -local uninstall` removes only `./.elon-ko/`, `bash elon_ko.sh uninstall` removes only the global install). A LOCAL install is not added to PATH automatically — activate it per shell with `source ./.elon-ko/env.sh`, which exports `PI_CONFIG_DIR`, `XDG_DATA_HOME`, `PATH`, `BUN_INSTALL`, and `PI_INSTALL_DIR`. Both `PI_CONFIG_DIR` (config root) and `XDG_DATA_HOME` (data category: native module + plugins) are required — omp's native loader ignores `PI_CONFIG_DIR`, so setting only `PI_CONFIG_DIR` leaks the native module to `~/.omp/natives/` and runs native-version cleanup against the global dir. See the new **Local install (`-local`)** section in [`README.md`](./README.md) for the layout, activation, and caveats (separate auth; `XDG_DATA_HOME` is shell-wide; baked absolute paths). A pre-release tag works per mode: `bash elon_ko.sh -local <tag>` (LOCAL → `./.elon-ko/prerelease/`) and `bash elon_ko.sh <tag>` (GLOBAL → `~/.omp-prerelease/`). Installer-only (the installer is fetched from `main` HEAD, so no version bump or release is required).
+
+### Fixed
+
+- **`elon_ko.sh` global pre-release install no longer crashes.** A latent pre-existing bug: the parser set `REF` on a pre-release tag but not `TAG`, and the pre-release block plus the summary referenced `${TAG}` — which aborted under `set -u` with `TAG: unbound variable`. The parser now sets both. Stable global behavior is unchanged.
 
 ## [v2.3.1] - 2026-06-29
 
