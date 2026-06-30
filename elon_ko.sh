@@ -248,8 +248,9 @@ if [ "$SUB_MODE" = "uninstall" ]; then
 EOF
     exit 0
   else
-    # §9.2 GLOBAL uninstall — byte-identical to the pre-change uninstall.
-    # MUST NOT touch ./.elon-ko.
+    # §9.2 GLOBAL uninstall — byte-identical to the pre-change uninstall, plus
+    # (1) GLOBAL marker removal and (2) a courtesy notice if a LOCAL install
+    # coexists. MUST NOT touch ./.elon-ko.
     say "Uninstalling elon-ko (current + pre-v2.0.0 branding)"
     if ! have omp; then
       warn "omp not found — nothing to uninstall (the plugins require omp)."
@@ -271,6 +272,8 @@ EOF
       rm -rf "$PRERELEASE_BASE"
       ok "removed pre-release source cache ($PRERELEASE_BASE)"
     fi
+    # (1) GLOBAL mode marker (FR-9/D4) — elon-ko-only, removed with the install.
+    rm -f "$HOME/.omp/elon-ko.install.json" 2>/dev/null || true
     cat <<EOF
 
 ============================================================
@@ -288,6 +291,10 @@ EOF
   Per-project opt-in markers (.omp/elon.json) are left untouched (user data).
 ============================================================
 EOF
+    # (2) courtesy notice if a LOCAL install coexists (NOT removed; §9.2).
+    if [ -f "./.elon-ko/.install.json" ] || [ -d "./.elon-ko" ]; then
+      printf '\n  Note: a LOCAL elon-ko install still exists at ./.elon-ko/ (unaffected).\n  Remove it with: bash elon_ko.sh -local uninstall\n'
+    fi
     exit 0
   fi
 fi
@@ -632,4 +639,14 @@ EOF
 EOF
   fi
 
+  # FR-9/D4 (additive 1): write the GLOBAL mode marker. ~ already exists (populated
+  # by the install above); this adds one FILE under an existing global dir, not a
+  # new global directory (AC-1 "no new global paths" = no new DIRS).
+  write_marker global "$MARKER_PATH" "$MKT_SOURCE" "$HOME/.omp" "$HOME/.local/bin" "$REF" "$SUB_MODE"
+
+  # §10.2/D5 (additive 2): courtesy notice if a LOCAL install coexists. Exactly
+  # one line; on a clean machine (no ./.elon-ko) nothing is printed (byte-identical).
+  if [ -f "./.elon-ko/.install.json" ]; then
+    printf '\n  Note: a LOCAL elon-ko install also exists at ./.elon-ko/ (unaffected).\n'
+  fi
 fi
