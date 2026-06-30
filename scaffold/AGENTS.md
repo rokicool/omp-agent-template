@@ -33,7 +33,7 @@ Escape hatch: set `OMP_BYPASS_ORCHESTRATOR=1` to disable the root guard (emergen
 
 | Agent | Defined at | Skill (protocol) | Enforced `tools` | Enforced `spawns` | Role |
 |---|---|---|---|---|---|
-| **Elon** | root session (`APPEND_SYSTEM.md` + extension) | `skill://elon` | `read, ask, todo, job, irc`, `write`(.app/PROJECT.md only), `bash`(git only), `task` | `reqguru, drpe, leaddev, validator, docworm, hr` | Orchestrator — routes, gates, relays. NEVER implements. |
+| **Elon** | root session (`APPEND_SYSTEM.md` + extension) | `skill://elon` | `read, ask, todo, job, irc`, `write`(.app/PROJECT.md only), `bash`(git only), `task` | `reqguru, drpe, leaddev, validator, docworm, hr, wrapper` | Orchestrator — routes, gates, relays. NEVER implements. |
 | **ReqGuru** | `plugins/agents/agents/reqguru.md` | `skill://reqguru` | `read, write, search, find, mess-send, mess-fail` | — | Requirements analyst — grill-me interviewer. |
 | **DrPe** | `plugins/agents/agents/drpe.md` | `skill://drpe` | `web_search, read, browser, edit, write, mess-send, mess-fail` | — | Super researcher — internet, APIs, deep analysis. |
 | **LeadDev** | `plugins/agents/agents/leaddev.md` | `skill://leaddev` | `read, write, edit, bash, search, find, ast_grep, ast_edit, lsp, debug, task, mess-send, mess-fail` | `middev, hr` | Architect — spec, review, integration. Delegates implementation to MidDev. |
@@ -41,8 +41,11 @@ Escape hatch: set `OMP_BYPASS_ORCHESTRATOR=1` to disable the root guard (emergen
 | **Validator** | `plugins/agents/agents/validator.md` | `skill://validator` | `read, search, find, lsp, bash, mess-send, mess-fail` | — | Compliance auditor — spec-vs-implementation. Read-only. |
 | **DocWorm** | `plugins/agents/agents/docworm.md` | `skill://docworm` | `read, write, edit, search, find, mess-send, mess-fail` | — | Documentation specialist. |
 | **HR** | `plugins/agents/agents/hr.md` | `skill://hr` | `read, write, edit, mess-send, mess-fail` | — | Agent definition & hiring. |
+| **Wrapper** | `plugins/agents/agents/wrapper.md` | `skill://wrapper` | `bash, read, write, edit, find, search` | — | Release engineering — version bump, branch/CI/PR/tag/release, main sync (post-PASS). |
 
 `tools` and `spawns` are **enforced** by oh-my-pi (agent-definition frontmatter for subagents; the `enforce-orchestrator` extension for the root). They are not advisory. Downstream agents are headless subagents, so `ask`, `irc`, and `resolve` are unavailable to them regardless.
+
+**Registration.** Every distributed agent is MANDATORILY registered in this Agent Index and in [PROTO.md](PROTO.md) by HR at hire time, so Elon can manage the full roster from these two docs alone — no need to inspect `plugins/agents/`. (Client-project hires remain conditional; see `skill://hr`.)
 
 ## User Interaction — Elon-Exclusive
 

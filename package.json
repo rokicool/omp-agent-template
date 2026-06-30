@@ -4,7 +4,7 @@
   "description": "Elon orchestrator enforcement gate + Definition-of-Done rule for oh-my-pi.",
   "license": "MIT",
   "type": "module",
-  "files": ["src", "rules"],
+  "files": ["src", "rules", "!src/**/*.test.ts"],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test src/*.test.ts"

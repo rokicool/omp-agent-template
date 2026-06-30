@@ -205,6 +205,23 @@ If spawned:
 |-------|--------|
 | DocWorm | Updates README, guides, API references to reflect the implementation. |
 
+#### Wrapper (Conditional)
+
+Wrapper is **not mandatory** for every PASS. Elon evaluates:
+
+| Condition | Action |
+|-----------|--------|
+| The change is being released (needs a version bump + tag) | **Wrapper MUST run** to cut and publish the release. |
+| Internal-only change not being released | **Wrapper MAY be skipped.** Elon notes the reason in the completion report. |
+| CI is red or the version source is ambiguous | **Escalate** — resolve before spawning Wrapper. |
+
+If spawned:
+
+| Actor | Action |
+|-------|--------|
+| Elon | Spawns **Wrapper** with the release scope (version-bump policy from Conventional Commits, target branch). |
+| Wrapper | Bumps the version, creates the release branch, pushes, gates on CI, opens the PR/MR, cuts the tag/release, and syncs `main`. Escalates back to Elon on CI failure, ambiguous version source, or MAJOR-bump merge approval. Never implements, validates, or documents. |
+
 ---
 
 ## Trivial Path Phases
@@ -244,6 +261,30 @@ Same as the Full Path Phase 6, with the same conditional DocWorm rules.
 | Validator | VALIDATE, T2 | — | Compliance auditing — spec-vs-implementation verification. |
 | DocWorm | DONE (conditional) | `README.md` | Documentation — creates/updates docs when needed. |
 | HR | DEVELOP (on demand) | — | Agent definition — creates new skill files for specialist expertise. |
+| Wrapper | DONE (on demand) | — | Release engineering — ships the release (version bump, branch/push, CI gate, PR/MR, tag/release, main sync) after Validator PASS. Escalates merge-approval / ambiguous-version / CI-failure back to Elon. |
+
+---
+
+## Hiring a Distributed Agent
+
+Extending the DISTRIBUTED team (in this development repo) is a multi-agent flow — not an HR-only act. HR creates the definition + skill and registers the docs; LeadDev wires the code allowlists; Wrapper ships the release.
+
+**Registration surface** — every touchpoint a new distributed agent needs:
+
+| Touchpoint | File | Owner |
+|------------|------|-------|
+| Agent definition | `plugins/agents/agents/<name>.md` | HR |
+| Skill | `plugins/agents/skills/<name>/SKILL.md` | HR |
+| Local mirror (dev session) | `.omp/agents/<name>.md` + `.agents/skills/<name>/SKILL.md` | HR |
+| Marketplace roster | `.omp-plugin/marketplace.json` | HR |
+| Agent Index | `scaffold/AGENTS.md` | HR (mandatory) |
+| Phase Map | `scaffold/PROTO.md` | HR (mandatory) |
+| Root spawn allowlist | `src/enforce-orchestrator.ts` `TEAM` | LeadDev |
+| Messaging roster | `src/mess-transport.ts` `TEAM` | LeadDev (if mess-capable) |
+| Version + release | `package.json` + `marketplace.json` + tag | Wrapper |
+| Runtime registration | omp restart | user |
+
+**Drift rule.** The hire writes the dev source (`plugins/`) AND the local mirror (`.omp/` + `.agents/`) together, byte-identical, so they cannot diverge at hire time; on release the local mirror is re-synced from the released plugin. The fully drift-free alternative is `omp plugin link`, where the dev session reads `plugins/` directly and no mirror is needed.
 
 ---
 
