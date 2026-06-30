@@ -1,335 +1,504 @@
-# RESEARCH — `opt-s` (Option+S / Alt+S) failure in elon-ko v2.1.2 on ghostty 1.3.1
+# RESEARCH — Can `omp` install plugins to a PROJECT-LOCAL home?
 
-> **Type:** Installation diagnostic (not a library survey). This report
-> supersedes the prior frozen `.app/RESEARCH.md` snapshot.
-> **Investigator:** DrPe · **Date:** 2026-06-28 · **Machine:** macOS, Apple
-> Silicon (arm64), ghostty 1.3.1.
+> **Type:** Mechanism feasibility study (RESEARCH-phase deliverable for the
+> `elon_ko.sh` LOCAL/GLOBAL install-modes feature).
+> **Investigator:** DrPe · **Date:** 2026-06-30 · **Access date for all
+> upstream omp sources below: 2026-06-30.**
+> **Anchored to:** `.app/REQ.md` (LOCAL layout D1, NFR-4, AC-2, AC-12,
+> RESEARCH Dependency §151–159). This report answers OQ-1 / AC-12.
+> **Upstream:** omp = `can1357/oh-my-pi` (a published variant of
+> `earendil-works/pi`); all plugin/config path code lives in
+> `packages/utils/src/dirs.ts` and `packages/coding-agent/src/extensibility/plugins/**`.
 
 ---
 
 ## Scope
 
-Diagnose why `opt-s` does not work after installing `elon-ko`
-(`elon-ko-gate` + `elon-ko-agents`) at **v2.1.2** on macOS under
-**ghostty 1.3.1**. Dimensions covered: (1) authoritative definition of what
-`opt-s` is supposed to trigger; (2) the actual local install — version,
-paths, manifests, and whether the v2.1.2 "Option+S fix" is really present;
-(3) how the v2.1.2 fix is wired in source; (4) the terminal factor
-(ghostty 1.3.1 Option-key encoding); (5) ranked root-cause hypotheses with
-evidence; (6) what could not be verified. Sources: local plugin/manifest
-reads, the elon-ko source tree + CHANGELOG/README, ghostty 1.3.0/1.3.1
-release notes, the ghostty config reference, and corroborating community
-reports of the same macOS-Option problem class.
+Determine definitively whether `omp` can install **Plugin A**
+(`elon-ko-gate`, extension-package) and **Plugin B** (`elon-ko-agents`,
+marketplace) into a **project-local** `./.elon-ko/plugins/` with **nothing**
+written under `~/.omp/`, and whether the omp/bun **binaries** can be vendored
+into `./.elon-ko/bin/`. Dimensions: (1) the exact mechanism omp reads to
+resolve its plugin/config directory; (2) whether any env var / flag / config
+relocates it cleanly; (3) where each `omp plugin …` write actually lands and
+whether it can be forced project-local; (4) bin-vendoring knobs in the omp
+and bun installers; (5) side effects on omp's other global state; (6) the
+least-invasive fallback if no clean relocation exists.
+
+Sources consulted (all read in full, not snippet-cited): the omp source files
+`packages/utils/src/dirs.ts`, `…/plugins/manager.ts` (via the plumbing doc),
+`…/plugins/marketplace/registry.ts`, `…/plugins/marketplace/cache.ts`; the omp
+docs `environment-variables.md`, `plugin-manager-installer-plumbing.md`,
+`marketplace.md`, `coding-agent/DEVELOPMENT.md`; the omp installer
+`scripts/install.sh` (served at `https://omp.sh/install`); the bun installer
+`https://bun.sh/install`; `earendil-works/pi` issue #534 (the
+`PI_CONFIG_DIR` semantics thread); plus the in-repo `elon_ko.sh`, `CHANGELOG.md`,
+and the prior `.app/RESEARCH.md`.
+
+---
+
+## TL;DR — direct answer (Q1)
+
+**PARTIAL — and not in the shape REQ's per-mode table implies.**
+
+- omp has **NO `OMP_HOME`**, **NO `--plugin-dir` / `--prefix` flag**, **NO
+  config-file key**, and **NO full-path plugin-home override.** The single
+  mechanism omp reads to resolve its plugin directory is `getPluginsDir()` in
+  `packages/utils/src/dirs.ts`, which computes
+  `path.join(configRoot, "plugins")`, where
+  `configRoot = getBaseConfigRoot() = path.join(os.homedir(), PI_CONFIG_DIR || ".omp")`.
+  Plugins are therefore **always a subdir of the config root**, and the config
+  root is **always `$HOME` + a dirname suffix**.
+
+- The only env vars that move *any* omp path are `PI_CONFIG_DIR` (config-root
+  **dirname under home**, *not* a full path), `PI_CODING_AGENT_DIR` (agent dir
+  only — **does not touch plugins**), and the `XDG_*_HOME` set (Linux/macOS;
+  relocates omp's whole `data` category, *not* selectively plugins). None is a
+  clean "plugins → `./.elon-ko/plugins/` and leave `~/.omp/` untouched" knob.
+
+- **However**, because `getBaseConfigRoot()` is a bare `path.join(os.homedir(),
+  PI_CONFIG_DIR)` with **zero validation** on `PI_CONFIG_DIR`, setting
+  `PI_CONFIG_DIR` to a value that resolves to `$PWD/.elon-ko` relocates the
+  **entire omp home** (plugins + marketplaces.json + agent/ + everything) into
+  `./.elon-ko/`. Plugins then land at **exactly `./.elon-ko/plugins/`**, which
+  matches REQ D1. This is achievable and is the recommended mechanism — with
+  documented caveats (whole-home blast radius; `..`-relpath when the project is
+  outside `$HOME`; env must be re-exported every run).
+
+- **Plugin B (marketplace) has one write that `XDG_DATA_HOME` alone CANNOT
+  move:** `marketplaces.json` is written to `getConfigRootDir()` (raw
+  `$HOME/PI_CONFIG_DIR`), *not* the XDG-redirected data tree. So an
+  XDG-only strategy still leaks `~/.omp/marketplaces.json` under `$HOME`. Only
+  relocating `configRoot` itself (via `PI_CONFIG_DIR`) closes this gap.
+
+**Bottom line:** LOCAL plugin install is **achievable** via `PI_CONFIG_DIR`
+whole-home relocation, **not** via a plugins-only flag. See Recommendations R1.
 
 ---
 
 ## Findings
 
-### What `opt-s` is supposed to do (DEFINITION)
+### F1. How omp resolves its plugin directory (the exact mechanism)
 
-`opt-s` = **Option+S on macOS** (= Alt+S), and it is a **keyboard
-keybinding**, not a CLI/slash command. It toggles the
-**`subagent-panel` full-table overlay** — a scrollable, on-demand list of
-every running subagent with per-agent stats — provided by the
-`subagent-panel` extension shipped in **Plugin A (`elon-ko-gate`)**.
+`packages/utils/src/dirs.ts` (raw:
+`https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/utils/src/dirs.ts`)
+is the single source of truth. The relevant code, quoted verbatim:
 
-- **README.md** ("Subagent observability panel", available since v1.8.0):
-  *"an on-demand **`Alt+S`** full-table overlay … `Alt+S`, `Esc`, or `q`
-  close it."* Config knob `OMP_SUBAGENT_PANEL_KEY` (default `Alt+S`)
-  changes the chord.
-- **CHANGELOG.md `[v1.8.0]`** (2026-06-27): *"A compact panel above the
-  editor streams per-subagent stats … `Alt+S` opens a full scrollable
-  table of every agent."*
-- **Source**, `src/subagent-panel.ts:52-54`:
-  `TOGGLE_KEY_DISPLAY = "Alt+S"`, `TOGGLE_KEY = "alt+s"`. Registered via
-  `pi.registerShortcut(TOGGLE_KEY, …)` at `src/subagent-panel.ts:743-749`.
-- **Not gated by the orchestrator opt-in** (README): the extension "loads
-  wherever Plugin A is installed, and activates in any **interactive TUI
-  session** — it no-ops when `ctx.hasUI` is false." So `.omp/elon.json` /
-  `OMP_ENABLE_ORCHESTRATOR` do **not** affect whether the binding loads.
+```ts
+export const CONFIG_DIR_NAME: string = ".omp";
+…
+export function getConfigDirName(): string {
+    return process.env.PI_CONFIG_DIR || CONFIG_DIR_NAME;
+}
+…
+function getBaseConfigRoot(): string {
+    return path.join(os.homedir(), getConfigDirName());
+}
+…
+export function getPluginsDir(home?: string): string {
+    if (home !== undefined && home !== RESOLVER_HOME) {
+        return path.join(home, getConfigDirName(), "plugins");   // test-only branch
+    }
+    return dirs.rootSubdir("plugins", "data");                    // production branch
+}
+```
 
-**Confidence: High.** Multiple independent repo sources agree.
+and `DirResolver.rootSubdir`:
 
-### Installed version & location (CONFIRMED 2.1.2 — but a messy dual install)
+```ts
+rootSubdir(subdir: string, xdg?: XdgCategory): string {
+    const base = xdg ? this.#rootDirs[xdg] : this.configRoot;     // configRoot unless XDG
+    const result = path.join(base, subdir);
+    return result;
+}
+```
 
-The installed plugin files live under `~/.omp/plugins/`. The current
-plugins are genuinely **v2.1.2**, **but stale pre-rebrand plugins are also
-installed and enabled alongside them.**
+with `this.configRoot = getProfileConfigRoot(profile)` → `getBaseConfigRoot()`
+(`path.join(os.homedir(), PI_CONFIG_DIR||".omp")`).
 
-- `~/.omp/plugins/package.json` → deps include
-  `"elon-ko-gate": "github:rokicool/elon-ko#v2.1.2"` ✓
-  **and** a stale `"omp-agent-gate": "github:rokicool/omp-agent-template#v1.6.0"`.
-- `~/.omp/plugins/bun.lock` → `elon-ko-gate` resolved at commit
-  **`74f7082`**; `omp-agent-gate` at `46c7edb`.
-- `~/.omp/plugins/installed_plugins.json` →
-  `elon-ko-agents@elon-ko` **v2.1.2**, installPath
-  `/Users/roki/.omp/plugins/cache/plugins/elon-ko___elon-ko-agents___2.1.2`;
-  **and** stale `orchestrator-agents@omp-agent-template` **v1.7.0**.
-- `~/.omp/plugins/omp-plugins.lock.json` → **both** sets enabled:
-  `elon-ko-gate` 2.1.2 + `elon-ko-agents` 2.1.2 **enabled:true**, **and**
-  `omp-agent-gate` 1.6.0 + `orchestrator-agents` 1.7.0 **enabled:true**.
-- Installed gate source tree:
-  `/Users/roki/.omp/plugins/node_modules/elon-ko-gate/` (the whole repo
-  tarball). Its `package.json#version` = **`2.1.2`** ✓.
+**Resolution chain (production, no XDG, default profile):**
 
-Two flags, neither by itself the root cause (see §"Could not verify"):
-1. **Commit mismatch.** `bun.lock` resolved `#v2.1.2` to `74f7082`, but
-   the project's own release record (`.app/PROJECT.md`) records the
-   `v2.1.2` annotated tag at commit `e7d5871`. The two differ. Content-wise
-   the installed copy is correct (see next finding), so this is a
-   release-hygiene concern, not the functional cause.
-2. **Dual install.** Both the new (`elon-ko-*`) and the legacy
-   (`omp-agent-gate`/`orchestrator-agents`) plugins are present and
-   enabled. The legacy `omp-agent-gate` **v1.6.0** predates
-   `subagent-panel` entirely (that extension was added in v1.8.0;
-   `subagent-tabs` was removed in v1.6.0), so it registers **no** `Alt+S`
-   binding and does not directly collide with this feature — but it is a
-   sign of an unclean migration and a potential load-conflict risk.
+```
+getPluginsDir()
+  = dirs.rootSubdir("plugins", "data")
+  = path.join(configRoot, "plugins")
+  = path.join( path.join(os.homedir(), process.env.PI_CONFIG_DIR || ".omp"), "plugins")
+  = ~/.omp/plugins            (default)
+```
 
-**Confidence: High** (read directly from on-disk manifests).
+- **Source:** `packages/utils/src/dirs.ts` (`getConfigDirName`, `getBaseConfigRoot`,
+  `getPluginsDir`, `DirResolver` ctor, `rootSubdir`).
+- **Confidence: High** — read directly from the runtime source; the env-vars doc
+  corroborates: *"`PI_CONFIG_DIR` — Config root dirname under home (default
+  `.omp`)"* (`docs/environment-variables.md` §6).
 
-### The v2.1.2 "Option+S fix" IS present in the installed copy
+### F2. `PI_CONFIG_DIR` is a "dirname under home" suffix, NOT a full-path override
 
-CHANGELOG.md `[v2.1.2]` (2026-06-28) claims the fix:
-> *"macOS `Option+S` subagent-panel toggle works again. Pressing
-> `Option+S` on macOS emits the composed `ß` byte (U+00DF), which bypassed
-> omp's `registerShortcut` matcher (it listened for a distinct `Alt+S`
-> sequence) … The panel's keybinding now also recognizes the composed `ß`
-> byte."*
+`getConfigDirName()` returns `process.env.PI_CONFIG_DIR` **raw, with no
+validation** (contrast `normalizeProfileName`, which rejects `.`/`..` for
+profiles — `PI_CONFIG_DIR` has no such guard). It is then fed into
+`path.join(os.homedir(), …)`. Consequences of `path.join` semantics:
 
-Verified present in the **installed** source
-(`/Users/roki/.omp/plugins/node_modules/elon-ko-gate/src/subagent-panel.ts`),
-identical to the dev tree:
+| `PI_CONFIG_DIR` value | `path.join(os.homedir(), value)` | Escapes `$HOME`? |
+|---|---|---|
+| `.omp` (default) | `~/.omp` | no |
+| `.config/omp` | `~/.config/omp` | no (still under `$HOME`) |
+| `github/elon-ko/.elon-ko` (project under `$HOME`) | `~/github/elon-ko/.elon-ko` = `$PWD/.elon-ko` | **no, but lands inside the project** |
+| `../../tmp/proj/.elon-ko` (project outside `$HOME`) | `/tmp/proj/.elon-ko` | **yes, via `..` normalization** |
+| `/abs/path` (absolute) | `~/abs/path` (leading slash stripped) | **no — appended, NOT an override** |
 
-- Composition map `MACOS_OPTION_COMPOSE` (`subagent-panel.ts:81-85`)
-  maps `s → "ß"` (and `a→å, b→∫, c→ç, … p→π …`).
-- Helper `macosOptionComposedFor("alt+s") → "ß"` (`subagent-panel.ts:93-96`).
-- The actual fix — a raw terminal-input fallback
-  (`subagent-panel.ts:751-771`):
+So: (a) an **absolute** `PI_CONFIG_DIR` does **not** override — it gets nested
+under `$HOME`; (b) a **relative subpath** to a project that lives under
+`$HOME` resolves to that project cleanly (no `..`); (c) a project **outside**
+`$HOME` is reachable only via leading `..` segments.
 
+- **Source:** `dirs.ts` (`getConfigDirName`, no validation); `path.join`
+  semantics (Node `node:path`); `docs/environment-variables.md` §6 ("dirname
+  under home").
+- **Corroborating:** `earendil-works/pi` issue #534 (omp's upstream)
+  establishes `PI_CONFIG_DIR` is *the* config-location escape hatch and is a
+  dirname-under-home, not XDG-compliant by itself:
+  `https://github.com/earendil-works/pi/issues/534`.
+- **Confidence: High.**
+
+### F3. Where each `omp plugin …` write actually lands (the write map)
+
+From `…/plugins/marketplace/registry.ts` (raw path under
+`packages/coding-agent/src/extensibility/plugins/marketplace/registry.ts`)
+and `…/marketplace/cache.ts`, plus `docs/plugin-manager-installer-plumbing.md`
+and `docs/marketplace.md`:
+
+| Operation | What is written | Path helper | Default location | XDG-redirectable? |
+|---|---|---|---|---|
+| **Plugin A** `omp plugin install github:…` (npm/git) | `package.json`, `node_modules/<pkg>`, `omp-plugins.lock.json` | `getPluginsDir()` (`bun install` run there) | `~/.omp/plugins/` | **Yes** (`data` category) |
+| **Plugin B** `omp plugin marketplace add` | **`marketplaces.json`** (catalog registry) | `getConfigRootDir()` | `~/.omp/marketplaces.json` | **NO** — `configRoot` is raw `$HOME/PI_CONFIG_DIR` |
+| **Plugin B** `omp plugin install X@Y` (user scope) | `installed_plugins.json` | `getPluginsDir()` | `~/.omp/plugins/installed_plugins.json` | **Yes** |
+| **Plugin B** `omp plugin install X@Y --scope project` | `installed_plugins.json` (**manifest only**) | `getProjectAgentDir(cwd)` = `<cwd>/.omp/plugins/installed_plugins.json` | already project-local | n/a |
+| **Plugin B** cached plugin files (both scopes) | `<mkt>___<plugin>___<ver>/` | `getPluginsCacheDir()` = `getPluginsDir()/cache/plugins` | `~/.omp/plugins/cache/plugins/…` | **Yes** |
+
+Key code from `registry.ts`:
+
+```ts
+export function getMarketplacesRegistryPath(): string {
+    return path.join(getConfigRootDir(), "marketplaces.json");   // ← configRoot, NOT XDG
+}
+export function getInstalledPluginsRegistryPath(): string {
+    return path.join(getPluginsDir(), "installed_plugins.json");
+}
+export function getMarketplacesCacheDir(): string { return path.join(getPluginsDir(), "cache", "marketplaces"); }
+export function getPluginsCacheDir(): string    { return path.join(getPluginsDir(), "cache", "plugins"); }
+```
+
+**Critical implication:** `--scope project` does **not** make Plugin B
+project-local in *files* — only the *manifest* (`<cwd>/.omp/plugins/installed_plugins.json`)
+moves; the actual cached plugin directory and `marketplaces.json` stay global
+under `~/.omp/`. And `marketplaces.json` is written to `getConfigRootDir()`,
+which **no `XDG_*` var touches** — only `PI_CONFIG_DIR` moves it.
+
+- **Sources:** `marketplace/registry.ts` (path helpers), `marketplace/cache.ts`
+  (`cachePlugin` → `getPluginsCacheDir`), `docs/marketplace.md` ("Scopes" +
+  "On-disk layout"), `docs/plugin-manager-installer-plumbing.md` ("On-disk
+  model" + "Link flow").
+- **Confidence: High.**
+
+### F4. XDG is a real but *blunt* relocation (whole `data` category, Linux/macOS)
+
+In the `DirResolver` constructor (`dirs.ts`), on Linux/macOS with the default
+profile, if `$XDG_DATA_HOME/omp` **exists on disk** (`fs.existsSync`), the
+entire `data` category (which includes `plugins/`, `node_modules`, the plugin
+cache, `agent.db`, `sessions`, `history.db`, `blobs`, `models.db`, …) redirects
+to `$XDG_DATA_HOME/omp/`:
+
+```ts
+if ((process.platform === "linux" || process.platform === "darwin") && isDefault) {
+    const resolveIf = (envVar: string) => {
+        const value = process.env[envVar]; if (!value) return undefined;
+        const appRoot = path.join(value, APP_NAME);           // $XDG_DATA_HOME/omp
+        if (fs.existsSync(appRoot)) { return appRoot; }        // ← existence gate
+    };
+    xdgData = resolveIf("XDG_DATA_HOME"); …
+}
+```
+
+`getPluginsDir()` is `rootSubdir("plugins","data")`, so under XDG plugins become
+`$XDG_DATA_HOME/omp/plugins/`. A migration command exists:
+`omp config init-xdg` is a registered action
+(`packages/coding-agent/src/commands/config.ts` → `ACTIONS = […, "init-xdg"]`).
+
+**Why XDG is inferior to `PI_CONFIG_DIR` for LOCAL mode:**
+1. It does **not** move `marketplaces.json` (configRoot, F3) → still leaks
+   `~/.omp/marketplaces.json` under `$HOME` → **violates NFR-4**.
+2. It moves *all* data-category state (sessions, auth db, history), not just
+   the elon-ko plugins — large blast radius.
+3. `XDG_DATA_HOME` is a system-wide convention; exporting it globally breaks
+   every other XDG-aware tool, so it can only be a per-invocation export —
+   meaning every `omp` run in the project must re-source it, and a bare `omp`
+   without it reads `~/.omp` again (plugins vanish).
+4. Requires pre-`mkdir $XDG_DATA_HOME/omp` (the `existsSync` gate).
+
+- **Sources:** `dirs.ts` `DirResolver` XDG block + header comment;
+  `commands/config.ts` (`init-xdg` action); `docs/environment-variables.md` §6.
+- **Confidence: High.**
+
+### F5. `PI_CONFIG_DIR` whole-home relocation is the cleanest achievable LOCAL mechanism
+
+Because **every** omp path (configRoot, plugins, agent dir, marketplaces.json,
+install-id, all `rootSubdir`/`agentSubdir` outputs) derives from the single
+`configRoot = path.join(os.homedir(), PI_CONFIG_DIR)`, exporting
+`PI_CONFIG_DIR` so that `configRoot` resolves to `$PWD/.elon-ko` relocates the
+**entire omp home** into the project in one knob:
+
+- `getPluginsDir()` → `$PWD/.elon-ko/plugins` ✅ (matches REQ D1 exactly)
+- `getMarketplacesRegistryPath()` → `$PWD/.elon-ko/marketplaces.json` ✅ (the F3 leak is closed)
+- `getPluginsCacheDir()` → `$PWD/.elon-ko/plugins/cache/plugins` ✅
+- `getInstallId()` → `$PWD/.elon-ko/install-id` (writes there via `getBaseConfigRoot`)
+- `getAgentDir()` → `$PWD/.elon-ko/agent` (agent.db, sessions, history move too — see F7)
+
+**Deriving `PI_CONFIG_DIR` for an arbitrary `$PWD`:** it must be a path that,
+when joined to `os.homedir()`, yields `$PWD/.elon-ko`.
+- If `$PWD` is under `$HOME` (the common case, e.g. `~/github/elon-ko`):
+  `PI_CONFIG_DIR` = the subpath of `$PWD` below `$HOME` + `/.elon-ko`
+  (e.g. `github/elon-ko/.elon-ko`) — clean, no `..`.
+- If `$PWD` is outside `$HOME`: `PI_CONFIG_DIR` needs leading `..` segments to
+  climb out of `$HOME` (e.g. `../../tmp/proj/.elon-ko`). Works today because
+  `getConfigDirName` does no validation and `path.join` normalizes `..`, but
+  this is **undocumented usage** and carries forward-compat risk if omp ever
+  validates the value (it validates profiles but not `PI_CONFIG_DIR`).
+
+`PI_CONFIG_DIR` must be set **before omp starts** (it is read once at module
+load into the `DirResolver` singleton). The `source ./.elon-ko/env.sh` activation
+that REQ D2 already plans is the natural place to export it — **every** `omp`
+invocation in that shell then uses the local home (and a bare `omp` without
+sourcing reads `~/.omp` and sees nothing local).
+
+- **Sources:** `dirs.ts` (`getConfigRootDir`, `getPluginsDir`, `getInstallId`,
+  all `rootSubdir`/`agentSubdir`); F2; F3.
+- **Confidence: High** that the relocation works as described; **Medium** on
+  long-term stability of the `..`-escape form (undocumented).
+
+### F6. omp/bun binary vendoring is cleanly supported (REQ RESEARCH item #2)
+
+- **bun installer** (`https://bun.sh/install`) honors `BUN_INSTALL`; default
+  `~/.bun`. `BUN_INSTALL=$PWD/.elon-ko` → bun at `$PWD/.elon-ko/bin/bun`.
+- **omp installer** (`scripts/install.sh`, served at `https://omp.sh/install`):
+  ```sh
+  INSTALL_DIR="${PI_INSTALL_DIR:-$HOME/.local/bin}"
   ```
-  const composedToggle = macosOptionComposedFor(TOGGLE_KEY); // "ß"
-  if (composedToggle !== undefined) {
-    unsubFns.push(
-      ctx.ui.onTerminalInput(data => {
-        if (!active) return undefined;
-        if (data === composedToggle) {            // STRICT === "ß"
-          toggleOverlay(ctx);
-          return { consume: true };
-        }
-        return undefined;
-      }),
-    );
-  }
-  ```
+  `PI_INSTALL_DIR=$PWD/.elon-ko/bin` + `--binary` mode downloads the omp binary
+  to `$PWD/.elon-ko/bin/omp` (no `$HOME` write). **Gotcha:** `--source` mode's
+  `install_bun()` **force-sets `export BUN_INSTALL="$HOME/.bun"`** and runs
+  `bun install -g`, so a `--source` install with bun missing writes `~/.bun`
+  (NFR-4 violation). Therefore LOCAL must either (a) install bun first with
+  `BUN_INSTALL=$PWD/.elon-ko` and pass `--source` (bun already present →
+  `install_bun()` skipped → `BUN_INSTALL` honored → omp at
+  `$PWD/.elon-ko/bin/omp`), or (b) use `--binary` + `PI_INSTALL_DIR`.
 
-- Opening path: `pi.registerShortcut("alt+s", …)` (`subagent-panel.ts:743-749`).
-- Closing path: `matchesKey(data, TOGGLE_KEY)` (`subagent-panel.ts:633`).
-- Guards: `activate` returns early unless `ctx.hasUI`
-  (`subagent-panel.ts:704`); `toggleOverlay` returns early unless
-  `active && ctx.hasUI` (`subagent-panel.ts:656`).
+- **Sources:** omp `scripts/install.sh` (`INSTALL_DIR`, `install_bun`,
+  `install_binary`); bun installer (`BUN_INSTALL`).
+- **Confidence: High.**
 
-**Critical implication:** the v2.1.2 fix only ever fires when the raw
-terminal input for Option+S is **exactly the string `"ß"`** (UTF-8
-`0xC3 0x9F`). It does **not** match an `ESC s` (Alt/Esc-prefix) sequence,
-nor any structured/`CSI u` encoded form, nor a plain `s` with the Alt bit
-stripped. This narrow contract is the hinge of the failure (see next).
+### F7. Side effects of relocating the omp home (Q4)
 
-**Confidence: High** (read the installed source line-by-line).
+Relocating `configRoot` via `PI_CONFIG_DIR` moves **all** omp state into
+`./.elon-ko/`, not only the two elon-ko plugins. Concrete side effects:
 
-### The terminal factor: ghostty 1.3.x changed macOS Option-key encoding (the decisive external change)
+1. **`marketplaces.json` + marketplace registration** move to the local
+   configRoot → LOCAL and GLOBAL installs have **disjoint** marketplace
+   registries. This *helps* REQ D5 (coexistence): the two modes cannot collide
+   on marketplace names. Removing one mode's tree cannot corrupt the other's
+   registry. ✅
+2. **`install-id`** (`getInstallId` → `<configRoot>/install-id`) becomes
+   per-project. Telemetry/dedup id is no longer machine-global. Neutral;
+   worth documenting.
+3. **`agent/` state** — `agent.db` (settings + **auth credentials**),
+   `sessions/`, `history.db`, `models.db`, `blobs/`, `memories/` — all move to
+   `$PWD/.elon-ko/agent/`. **Material consequence: the user's omp auth
+   (provider API keys / OAuth) is NOT shared with a LOCAL project** — they must
+   authenticate separately, or copy credentials. This is either a feature
+   (full project isolation) or a friction point. SPEC must surface it.
+4. **Gate opt-in marker `.omp/elon.json` is UNAFFECTED.** It is resolved via
+   `getProjectAgentDir(cwd) = path.join(cwd, CONFIG_DIR_NAME)` with the
+   **hardcoded** `CONFIG_DIR_NAME=".omp"` (not `PI_CONFIG_DIR`). So the opt-in
+   marker is always `<cwd>/.omp/elon.json` in both modes — REQ's "no changes to
+   the opt-in marker" (out-of-scope) holds, and LOCAL activation still works by
+   writing `./.omp/elon.json`. ✅ **But** the project will contain **two**
+   omp-related trees: `./.elon-ko/` (relocated home) **and** `./.omp/`
+   (project-scoped agent dir, for opt-in + project plugin-overrides). REQ D1
+   lists only `.elon-ko`; SPEC should note `.omp` coexists.
+5. **`XDG` combo (F4) would leave configRoot in `$HOME`** → `marketplaces.json`
+   + `install-id` stay global → partial relocation, conflicts with NFR-4. This
+   is why R1 prefers `PI_CONFIG_DIR` over XDG.
+6. **No `path.resolve`-style trap found:** all reads/writes go through the
+   `DirResolver` singleton fed by `configRoot`; with `PI_CONFIG_DIR` set at
+   process start there is **no stray write to `~/.omp/`**.
 
-Two verified facts about ghostty:
+- **Sources:** `dirs.ts` (`getInstallId`, `getProjectAgentDir`,
+  `getAgentDir`/agent subdirs, `CONFIG_DIR_NAME`); `registry.ts`; F3; F5.
+- **Confidence: High.**
 
-1. **Default `macos-option-as-alt` = false → Option composes Unicode.**
-   ghostty config reference / man page: *"On macOS by default, the option
-   key plus a character will sometimes produce a Unicode character. For
-   example, on US standard layouts option-b produces '∫'."* So on a default
-   ghostty, **Option+S → `ß`** — exactly the byte the v2.1.2 fix listens
-   for. (Corroborated by the well-known Claude-Code `Option+P → π` problem
-   class, whose documented fix is to set `macos-option-as-alt`.)
+### F8. Fallback options evaluated (Q3-fallback)
 
-2. **ghostty 1.3.0 changed the macOS Option→Alt encoding under the
-   extended keyboard protocol.** From the **ghostty 1.3.0 release notes**
-   (released **2026-03-09**), "Terminal Capabilities" section, verbatim:
-
-   > *"vt: Modify other keys state 2 no longer encodes option as alt on
-   > macOS. [#9406]"*
-
-   "Modify other keys state 2" = xterm **`modifyOtherKeys` level 2** (the
-   extended-key encoding TUIs enable to reliably read modifier combos).
-   Before 1.3.0, in that mode Option+S was encoded carrying the **Alt**
-   modifier (the very "Alt+S sequence" omp's `registerShortcut` was built
-   to match). **From 1.3.0 onward, ghostty drops the Alt encoding for
-   Option on macOS in that mode.** #9406 is the primary source; a
-   community thread (neurocyte/flow #413) confirms #9406 is specifically
-   about `modifyOtherKeys` + Option-as-Alt on macOS.
-
-3. **ghostty 1.3.1 does NOT revert #9406.** The **1.3.1 release notes**
-   (released **2026-03-13**) fix 1.3.0 regressions (phantom mouse events,
-   window sizing, tab-title focus, system-keybind overrides like
-   `super+h`, one-time-code passthrough, etc.) but **make no change to the
-   Option/Alt keyboard encoding**. So in the user's version (1.3.1) the
-   #9406 behavior is still in effect.
-
-**Why this breaks the v2.1.2 fix (mechanism, partially INFERRED — see
-"Could not verify"):** omp is a TUI that reads keys through a structured
-parser (`parseKey`, referenced in the plugin's own comments). Under
-`modifyOtherKeys`-level-2 + ghostty ≥1.3.0, Option+S is no longer emitted
-as the literal raw `ß` byte that the plugin's `data === "ß"` strict check
-requires, and is also no longer emitted as an `Alt+S` sequence that
-`registerShortcut("alt+s")` would match. The keystroke arrives in a
-different form (the Alt modifier bit is dropped in that encoding), so
-**neither the primary `registerShortcut` path nor the v2.1.2 `ß` fallback
-fires** — the overlay never opens. The v2.1.2 fix was authored and tested
-against the pre-1.3.0 ghostty behavior and therefore does not survive the
-1.3.0 default change.
-
-**Confidence on the change:** **High** (direct, dated primary citation).
-**Confidence on the exact failing byte form:** **Medium/Inferred** — I
-could not empirically capture what ghostty 1.3.1 actually delivers to omp
-on this machine (no live omp+ghostty test rig available to DrPe); the
-conclusion that the delivered form is neither literal `ß` nor a matched
-`Alt+S` is inferred from the release-note change + the strict equality in
-source. This is the single most relevant verified external delta between
-"v2.1.2 shipped as a fix" and "user on v2.1.2 + ghostty 1.3.1 reports it
-broken."
-
-### Ruled-out / lower-likelihood candidates
-
-- **Plugin failed to load / wrong version installed.** Ruled out: version
-  is genuinely 2.1.2 on disk and the `ß`-fix code is present in the
-  installed copy. Not the cause.
-- **Keybinding not registered.** Ruled out: `registerShortcut("alt+s")`
-  plus the `ß` fallback are both wired in the installed source.
-- **Orchestrator opt-in missing.** Ruled out as a cause for this feature:
-  `subagent-panel` is explicitly **not** gated by `.omp/elon.json` /
-  `OMP_ENABLE_ORCHESTRATOR` (README + source guard only checks `ctx.hasUI`).
-- **Conflict with another binding.** Unlikely: the only other enabled gate
-  (`omp-agent-gate` v1.6.0) predates this extension and binds no `Alt+S`.
-- **`OMP_SUBAGENT_PANEL_KEY` override.** Possible only if the user set it;
-  default is `Alt+S`. Worth a 10-second check, not a primary suspect.
-
----
-
-## Root-Cause Diagnosis (ranked)
-
-| # | Hypothesis | Likelihood | Evidence |
+| Option | Mechanism | Honors NFR-4? | Verdict |
 |---|---|---|---|
-| **1** | **ghostty 1.3.0 `#9406` defeats the v2.1.2 binding.** In `modifyOtherKeys`-2 mode, Option+S is no longer emitted as a literal `ß` byte nor as a matched `Alt+S` sequence, so neither `registerShortcut("alt+s")` nor the v2.1.2 `data === "ß"` fallback fires. | **High** | ghostty 1.3.0 RN ("vt: Modify other keys state 2 no longer encodes option as alt on macOS. #9406", 2026-03-09); 1.3.1 RN does not revert it; strict-equality fallback in source `subagent-panel.ts:759-771`; default `macos-option-as-alt=false`. Exact failing byte form INFERRED. |
-| 2 | `ctx.ui.onTerminalInput` not available/renamed in the installed omp runtime → the `ß` fallback never registers (and would throw inside `activate`, disabling the panel). | Medium | The fix depends on this surface existing on the running omp; DrPe could not read the installed omp runtime API version. **Needs LeadDev verification against the installed `omp`.** |
-| 3 | Stale dual install (`omp-agent-gate` v1.6.0 + `orchestrator-agents` v1.7.0) causes a load conflict that prevents `elon-ko-gate`'s extensions (incl. the panel) from initializing cleanly. | Low–Medium | `omp-plugins.lock.json` shows both old+new enabled. Not proven to break *only* opt-s; flag as hygiene. |
-| 4 | User has `macos-option-as-alt = true` → Option+S sends `ESC s` instead of `ß`, so the `ß` fallback can't fire. | Low | If set, `registerShortcut("alt+s")` would *more likely* work (ESC+s ≈ alt+s), so this would tend to *fix*, not break. Worth checking the user's `~/.config/ghostty/config`. |
-| 5 | Non-US input source so Option+S ≠ `ß`. | Low | `ß` only holds for US layout; verify the active macOS input source. |
-| 6 | Session not interactive (`ctx.hasUI` false) → overlay silently no-ops. | Low | User is in an interactive ghostty TUI; unlikely, but confirm omp is run interactively (not headless/RPC). |
+| **(a)** Vendor plugins as plain dirs + `omp plugin link <path>` | `PluginManager.link()` symlinks into **`getPluginsDir()/node_modules/<name>`** (still `$HOME`-rooted) + writes lockfile there | **No** — link target entry + lockfile are global | Reject |
+| **(a′)** `omp plugin install ./local-pkg` | local path → `PluginManager.link()` (same as above) | **No** | Reject |
+| **(b)** Symlink farm: `~/.omp` → `$PWD/.elon-ko` | Make `~/.omp` a symlink | **No** — creating `~/.omp` is itself a `$HOME` write; also **global** (one symlink redirects *all* omp usage machine-wide) → **breaks D5 coexistence** and NFR-1 | Reject |
+| **(c)** Per-invocation env shim exporting `PI_CONFIG_DIR` (+ PATH, BUN_INSTALL, PI_INSTALL_DIR) via `./.elon-ko/env.sh` | F5 mechanism | **Yes** | **Recommended (= R1)** |
+| **(d)** Patch omp source | fork/patch `dirs.ts` | Yes | Last resort — high maintenance, breaks `omp` upstream updates; unnecessary given (c) works |
+| **(e)** `XDG_DATA_HOME` only | F4 | **No** — `marketplaces.json` leaks | Reject as primary; could combine but inferior to (c) |
 
-**Headline:** The most probable cause is **#1** — an external terminal
-regression (`ghostty` 1.3.0 `#9406`, present in 1.3.1) that changes how
-macOS Option+S is encoded, defeating the exact byte the v2.1.2 fix listens
-for. The plugin is installed correctly and the fix is present; it simply
-does not match what ghostty 1.3.1 now delivers.
+- **Sources:** `docs/plugin-manager-installer-plumbing.md` ("Link flow" — link
+  writes into `~/.omp/plugins/node_modules`); F3; F4; F5; F7.
+- **Confidence: High.**
 
 ---
 
-## Recommendations (for LeadDev — diagnosis only; no fix applied here)
+## Recommendations
 
-1. **Harden the binding against the structured-key form (primary fix).**
-   Do not rely solely on `data === "ß"`. Also recognize the `modifyOtherKeys`/
-   Kitty-keyboard `CSI u` encoded form of Option+S (and the `ESC s`
-   alt-prefix form), so the overlay toggles regardless of which encoding
-   ghostty emits. Consider driving off omp's parsed key event
-   (`registerShortcut`) as the source of truth and treating the raw-byte
-   match purely as a fallback — and confirm omp's key parser is told (or
-   can be told) to treat Option as Meta on macOS. *Supports Findings
-   "What opt-s does", "v2.1.2 fix wiring", "ghostty 1.3.x change".*
-2. **Verify the omp runtime API.** Confirm `ctx.ui.onTerminalInput` exists
-   with the assumed signature in the installed `omp` (Finding 2). If it was
-   renamed/removed, the v2.1.2 fallback silently never registers — and
-   `activate()` may throw, taking the whole panel down. *Supports Finding 2.*
-3. **Document a user-side workaround** pending the code fix: tell macOS
-   users to add `macos-option-as-alt = true` (or `left`) to their ghostty
-   config so Option+S is sent as an `Alt` sequence that
-   `registerShortcut("alt+s")` can match (same fix the Claude-Code community
-   uses for `Option+P`). Note this is a *workaround*, not a real repair —
-   the plugin should not require terminal reconfiguration. *Supports
-   "terminal factor".*
-4. **Clean up the dual install.** Uninstall the legacy
-   `omp-agent-gate` (v1.6.0) and `orchestrator-agents@omp-agent-template`
-   (v1.7.0) so only `elon-ko-gate` + `elon-ko-agents` (2.1.2) remain,
-   eliminating the load-conflict risk (Finding 3) and matching the
-   `v2.0.0` migration notes. *Supports "Installed version & location".*
-5. **Investigate the commit mismatch** (`74f7082` resolved vs `e7d5871`
-   tagged) for release hygiene — confirm the `v2.1.2` tag still points at
-   the released commit and was not retagged. *Supports "Installed version".*
+### R1 (PRIMARY — adopt). Relocate the **whole omp home** via `PI_CONFIG_DIR`.
 
----
+`elon_ko.sh` LOCAL mode should, before invoking any `omp plugin …`:
 
-## Could NOT verify (stated explicitly)
+1. `OMP_LOCAL_HOME="$PWD/.elon-ko"`; `mkdir -p "$OMP_LOCAL_HOME"/{bin,prerelease}`.
+2. Compute `PI_CONFIG_DIR` so that
+   `path.join(os.homedir(), PI_CONFIG_DIR) == "$OMP_LOCAL_HOME"`:
+   - If `$PWD` is under `$HOME`: `PI_CONFIG_DIR="${PWD#$HOME/}/.elon-ko"` (clean subpath, no `..`).
+   - Else: derive a `..`-relative path from `$HOME` to `$OMP_LOCAL_HOME` (e.g. via
+     `realpath --relative-to="$HOME" "$OMP_LOCAL_HOME"` where available, else a
+     portable awk/sed fallback). Flag this branch as the "outside-`$HOME`" case.
+3. `export PI_CONFIG_DIR` (and `PATH`, `BUN_INSTALL`, `PI_INSTALL_DIR` — see R2)
+   for **every** `omp plugin …` call in the script.
+4. Write the same exports into `./.elon-ko/env.sh` so a later `source` keeps
+   subsequent `omp` runs local.
 
-- **The exact bytes ghostty 1.3.1 delivers to omp for Option+S** on this
-  machine (literal `ß` vs `CSI u` structured form vs plain `s` with the Alt
-  bit stripped). DrPe has no live `omp` + ghostty 1.3.1 test rig and cannot
-  run `showkey -a` inside the harness. The conclusion that the delivered
-  form no longer matches either the `registerShortcut` path or the strict
-  `=== "ß"` fallback is **inferred** from the #9406 default change and the
-  source's strict equality — this is the strongest explanation but is not
-  empirically confirmed at the byte level.
-- **Whether `ctx.ui.onTerminalInput` exists / has the assumed signature in
-  the installed `omp` runtime.** Could not read the omp runtime API surface
-  (only the plugin source, which `import type`s `@oh-my-pi/pi-coding-agent`
-  at `^16.0.5`). LeadDev should verify against the installed `omp` version.
-- **The user's actual ghostty config** (`~/.config/ghostty/config`) and
-  active macOS input source — not readable here. If
-  `macos-option-as-alt` is already set, hypothesis #4/#5 shift.
-- **Whether the user is running `omp` in a truly interactive TUI**
-  (`ctx.hasUI` true). Assumed yes from the report context; not confirmed.
-- **Why `#v2.1.2` resolved to `74f7082` while the release record says
-  `e7d5871`.** Flagged, not resolved.
+**Why R1:** it is the *only* mechanism that (i) lands plugins at exactly
+`./.elon-ko/plugins/` (F1, F5), (ii) also relocates `marketplaces.json` so
+**nothing** lands under `~/.omp/` (F3, F7), and (iii) is a single, already-shipped
+omp env var (`PI_CONFIG_DIR`) rather than a source patch. Supporting findings:
+F1, F2, F3, F5, F7, F8.
+
+### R2. Vendor the binaries with `BUN_INSTALL` + `PI_INSTALL_DIR`, and pre-install bun.
+
+- bun: `BUN_INSTALL="$OMP_LOCAL_HOME" curl -fsSL https://bun.sh/install | …`
+  → `$OMP_LOCAL_HOME/bin/bun` (F6).
+- omp: install bun **first** (above), then `PI_INSTALL_DIR="$OMP_LOCAL_HOME/bin"`
+  omp `--source` (bun present → `install_bun()` skipped → `BUN_INSTALL` honored),
+  **or** `--binary` + `PI_INSTALL_DIR` (cleanest, no bun-version dance). Either
+  avoids the `install_bun()` force-set of `BUN_INSTALL="$HOME/.bun"` (F6).
+- Supporting findings: F6.
+
+### R3. `env.sh` must export the **omp relocation env**, not just `PATH` (expand REQ D2).
+
+REQ D2 currently specifies only `export PATH="$PWD/.elon-ko/bin:$PATH"`. For omp
+to actually *read* the local home on subsequent runs, `env.sh` must **also**
+export `PI_CONFIG_DIR` (R1) — otherwise a later bare `omp` reads `~/.omp` and
+the project-local plugins are invisible. SPEC should expand D2/FR-7 to include
+the `PI_CONFIG_DIR` export (and optionally `BUN_INSTALL`/`PI_INSTALL_DIR` for
+the vendored binaries). Supporting findings: F5, F7.
+
+### R4. Scope AC-2's `$HOME` snapshot to the **enumerated global paths**, not a raw `$HOME` diff.
+
+A literal "no new/modified entries under `$HOME`" is **unsatisfiable when the
+project itself is under `$HOME`**: FR-9 *requires* creating
+`./.elon-ko/.install.json`, which is then a child of `$HOME`. The snapshot must
+assert no changes to the **enumerated** global footprint — `~/.omp`,
+`~/.local/bin`, `~/.bun`, `~/.omp-prerelease`, `~/.zshrc`, `~/.bashrc` — and
+exclude the project tree (or be run with the project outside `$HOME`). NFR-4's
+*intent* (no global omp/bun writes) is fully achievable via R1+R2; only AC-2's
+*measurement wording* needs this precision. Supporting findings: F5, F7.
+
+### R5. Document the additional omp state dirs under `./.elon-ko/` and the auth-isolation consequence.
+
+`./.elon-ko/` will contain more than `{bin,plugins,prerelease}/`: omp will also
+create `marketplaces.json`, `install-id`, and an `agent/` tree (agent.db,
+sessions, history, …). SPEC should (a) state these are expected (not bugs),
+(b) note that LOCAL omp auth is **not shared** with the user's global omp
+(re-auth or credential copy required), and (c) note the coexisting `./.omp/`
+project-scoped dir (F7-4). Supporting findings: F3, F7.
+
+### R6. Keep `--scope project` and `omp plugin link` **out** of the LOCAL mechanism.
+
+Neither satisfies NFR-4: `--scope project` moves only the manifest, not the
+cache (F3); `link` writes into the global `node_modules` (F8). Do not rely on
+them for LOCAL. Supporting findings: F3, F8.
 
 ---
 
 ## Impact Assessment
 
-- **Verdict:** **EXPAND** (with a PROCEED recommendation).
-- **Affected requirement:** The delegation's baseline ("v2.1.2 was the
-  Option+S fix; diagnose why it still fails") is materially expanded:
-  the failure is **not** a mis-install or missing code — the fix is present
-  and the version is correct. The real cause is an **interaction with an
-  external default-behavior change in ghostty 1.3.0 (#9406, carried into
-  1.3.1)** that the v2.1.2 fix was not designed for, plus a secondary
-  dual-install hygiene problem.
-- **Explanation:** Findings establish (a) opt-s = `Alt+S` overlay toggle
-  (High confidence), (b) installed = real 2.1.2 with the `ß`-fix present
-  (High), and (c) the decisive external delta = ghostty 1.3.0 `#9406`
-  (High for the change; Medium/Inferred for the exact failing byte form).
-  The fix therefore needs to be broadened beyond a literal-`ß` match, and
-  the omp runtime API + terminal config must be confirmed. No requirement
-  is *contradicted*; the picture simply expands from "check the plugin" to
-  "plugin↔terminal-keyboard-protocol interaction."
-- **Recommendation:** **PROCEED to SPEC/DEVELOP (LeadDev)** to implement
-  Recommendations #1–#2 (robust binding + omp-API verification), with #3 as
-  an interim user workaround and #4–#5 as cleanup. No GRILL loop needed —
-  the delegation was unambiguous and the evidence is sufficient to design
-  the fix.
+**Verdict: EXPAND** (with one precision **CONTRADICT** on AC-2's measurement
+wording).
+
+**Affected requirements:**
+
+- **D2 / FR-7 (LOCAL PATH handling) — EXPAND.** `env.sh` must export
+  `PI_CONFIG_DIR` in addition to `PATH`, or subsequent `omp` runs do not see the
+  local plugins. (R3.) This does not contradict the resolved decision that no
+  shell-rc is edited — it expands *what* the emitted `env.sh` carries.
+- **D1 (LOCAL target layout) — EXPAND.** `./.elon-ko/` will hold omp's whole
+  home (`marketplaces.json`, `install-id`, `agent/`, …) in addition to
+  `{bin,plugins,prerelease}/`. The three dirs REQ lists are the *minimum*,
+  not the exhaustive contents. (R5.) The user intent ("single hidden root,
+  nothing dumped in cwd root") is preserved.
+- **NFR-4 / AC-2 — precision CONTRADICT (measurement only).** NFR-4's enumerated
+  global-path prohibitions are fully satisfiable; AC-2's literal "nothing new
+  under `$HOME`" snapshot is not, when project⊆`$HOME`, because the project's own
+  `.elon-ko` is a child of `$HOME`. (R4.) Intent is achievable; the AC's snapshot
+  scope must be narrowed to the enumerated paths / project tree excluded.
+- **AC-12 (research-gated) — RESOLVED GO.** DrPe confirms relocation **is
+  feasible** (R1), so AC-2/AC-7 for the LOCAL plugin tree are achievable as
+  specified; no fallback scoping of AC-12 is needed. (The fallbacks in F8 exist
+  but are inferior and not required.)
+- **D5 (coexistence) — reinforced, not affected.** Disjoint configRoots give
+  disjoint `marketplaces.json`/registries, so cross-mode interference is
+  impossible by construction. (F7-1.)
+
+**Explanation:** omp provides **no plugins-only relocation**; the only
+achievable LOCAL plugin mechanism (`PI_CONFIG_DIR`) relocates the *whole* omp
+home. That expands `./.elon-ko/`'s contents and demands that the activation
+script carry the relocation env var on every run — both are SPEC-actionable
+expansions, not user-intent changes. The resolved GRILL decisions (D1–D5) all
+stand; none is contradicted. The single hard discrepancy is AC-2's snapshot
+*wording*, which must be scoped to the enumerated global footprint (R4).
+
+**Recommendation for the workflow: PROCEED to SPEC.** No new GRILL round is
+warranted — the expansions above are mechanism/precision details LeadDev can
+resolve in the SPEC (expand D2's `env.sh` contents, document the extra omp
+state dirs + auth isolation, narrow AC-2's snapshot scope). User intent is
+final and unambiguous; only the LOCAL *mechanism* was open, and it is now
+confirmed (R1).
 
 ---
 
-## Sources Consulted
+## Sources Consulted (all accessed 2026-06-30)
 
-**Local (elon-ko, this machine):**
-- `~/github/elon-ko/CHANGELOG.md` — `[v2.1.2]` "Option+S fix" description; `[v1.8.0]` panel introduction; `[v2.0.0]` rebrand/migration.
-- `~/github/elon-ko/README.md` — `Alt+S` overlay docs; "not gated by opt-in"; `OMP_SUBAGENT_PANEL_KEY`.
-- `~/github/elon-ko/src/subagent-panel.ts` — binding wiring (lines 52-54, 81-96, 633, 656, 704, 743-771).
-- `~/.omp/plugins/package.json`, `bun.lock`, `installed_plugins.json`, `omp-plugins.lock.json` — installed versions/paths/dual-install.
-- `~/.omp/plugins/node_modules/elon-ko-gate/package.json` + `src/subagent-panel.ts` — confirms installed gate is 2.1.2 and contains the `ß`-fix (lines 751-771).
+1. **`packages/utils/src/dirs.ts`** — omp path resolver (single source of truth
+   for config root, plugins dir, agent dir, install-id, project dir, XDG logic).
+   `https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/utils/src/dirs.ts`
+2. **`…/plugins/marketplace/registry.ts`** — `marketplaces.json`/`installed_plugins.json`/cache path helpers.
+   `https://raw.githubusercontent.com/can1357/oh-my-pi/main/packages/coding-agent/src/extensibility/plugins/marketplace/registry.ts`
+3. **`…/plugins/marketplace/cache.ts`** — cached plugin dir layout under `getPluginsCacheDir()`.
+   `…/plugins/marketplace/cache.ts`
+4. **`docs/environment-variables.md`** — official `PI_CONFIG_DIR` / `PI_CODING_AGENT_DIR` / XDG semantics (§6).
+   `https://raw.githubusercontent.com/can1357/oh-my-pi/main/docs/environment-variables.md`
+5. **`docs/plugin-manager-installer-plumbing.md`** — on-disk model, `PluginManager.install`/`link`, scope behavior.
+   `https://raw.githubusercontent.com/can1357/oh-my-pi/main/docs/plugin-manager-installer-plumbing.md`
+6. **`docs/marketplace.md`** — scopes (user/project), on-disk layout, `--scope project` manifest-only behavior.
+   `https://raw.githubusercontent.com/can1357/oh-my-pi/main/docs/marketplace.md`
+7. **`packages/coding-agent/DEVELOPMENT.md`** — source map locating the plugin/marketplace modules.
+8. **`packages/coding-agent/src/commands/config.ts`** — confirms `omp config init-xdg` action.
+9. **`scripts/install.sh`** (served at `https://omp.sh/install`) — `PI_INSTALL_DIR`, `install_bun()` force-set of `BUN_INSTALL`, `--binary`/`--source` modes.
+   `https://raw.githubusercontent.com/can1357/oh-my-pi/main/scripts/install.sh`
+10. **bun installer** (`https://bun.sh/install`) — `BUN_INSTALL` install-dir override; corroborated by `https://bun.com/docs/installation`.
+11. **`earendil-works/pi` issue #534** — establishes `PI_CONFIG_DIR` as the config-location escape hatch, dirname-under-home semantics, and the XDG discussion.
+    `https://github.com/earendil-works/pi/issues/534`
+12. **In-repo `.app/REQ.md`** — requirements baseline (D1–D5, NFR-4, AC-2, AC-12, RESEARCH Dependency §151–159).
+13. **In-repo `elon_ko.sh`** — current install flow (`omp plugin install`/`marketplace add`, `--source`, prerelease, PATH export).
+14. **In-repo `CHANGELOG.md`** — `[v1.2.2]` DependencyLoop note confirming plugins resolve under `~/.omp/plugins/`.
+15. **Prior `.app/RESEARCH.md`** (opt-s diagnostic) — confirmed installed plugin files live under `~/.omp/plugins/{package.json,node_modules,installed_plugins.json,omp-plugins.lock.json}`.
 
-**ghostty (primary, dated):**
-- ghostty 1.3.0 release notes (2026-03-09), "Terminal Capabilities": *"vt: Modify other keys state 2 no longer encodes option as alt on macOS. #9406"* — https://ghostty.org/docs/install/release-notes/1-3-0
-- ghostty 1.3.1 release notes (2026-03-13): 1.3.0-regression patch; does not revert #9406 — https://ghostty.org/docs/install/release-notes/1-3-1
-- ghostty config reference / `ghostty(5)` man page: `macos-option-as-alt` default = false (Option composes Unicode) — https://ghostty.org/docs/config/reference · https://man.archlinux.org/man/ghostty.5
-- ghostty issue #7131 (2025-04-18): prior macOS alt+key esc-prefix regression history — https://github.com/ghostty-org/ghostty/issues/7131
-- ghostty issue #9406 (the #9406 change) — https://github.com/ghostty-org/ghostty/issues/9406
+---
 
-**Corroborating community (same macOS-Option problem class):**
-- massy22, "Fixing Claude Code Option+P Shortcuts on macOS" (2025-12-17) — Option+P→π; fix = `macos-option-as-alt` — https://zenn.dev/massy22/articles/772ebefdb4e1d6?locale=en
-- neurocyte/flow discussion #413 — confirms #9406 concerns `modifyOtherKeys` + Option-as-Alt on macOS — https://github.com/neurocyte/flow/discussions/413
+## GO/NO-GO
+
+**GO.** The user-chosen LOCAL layout (D1: `./.elon-ko/{bin,plugins,prerelease}/`) is achievable as specified — plugins land at `./.elon-ko/plugins/` and **nothing** is written under `~/.omp/` (or `~/.local/bin`, `~/.bun`, `~/.omp-prerelease`, shell rc) — provided SPEC adopts `PI_CONFIG_DIR` whole-home relocation (R1), vendors binaries via `BUN_INSTALL`/`PI_INSTALL_DIR` with bun pre-installed (R2), makes `env.sh` export `PI_CONFIG_DIR` (R3), and narrows AC-2's snapshot scope to the enumerated global paths (R4).
