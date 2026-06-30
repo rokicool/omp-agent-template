@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Phase** | SPEC (design only — no code changes in this phase) |
-| **Status** | READY FOR DEVELOP |
+| **Status** | REVISED (RESOLVE c1: D1 dual-knob — §5.4 lifts the §12/§17 XDG ban for LOCAL mode) |
 | **Date** | 2026-06-30 |
 | **Author** | LeadDev (SPEC phase) |
 | **Anchored to** | `.app/REQ.md` (GRILL COMPLETE; D1–D5 final; 12 ACs; FR-1..FR-15; NFR-1..NFR-5), `.app/RESEARCH.md` (DrPe GO verdict; R1–R6 binding; F1–F8) |
@@ -11,7 +11,7 @@
 | **Downstream consumers** | DEVELOP (MidDev implements from this spec), VALIDATE (Validator audits against §14) |
 
 > **Reading order for implementers:** §2 (CLI) → §4.2 (LOCAL flow) → §5 (PI_CONFIG_DIR) →
-> §6 (binaries) → §7 (env.sh) → §15 (file:line change map). For validators: jump to §14.
+> §5.4 (dual-knob / D1 resolution) → §6 (binaries) → §7 (env.sh) → §15 (file:line change map). For validators: jump to §14.
 
 ---
 
@@ -28,11 +28,17 @@ strings, algorithms, file paths, ordering, and the AC→section mapping. Where R
 prerogative" (e.g. the exact marker field set), this spec decides. Where RESEARCH said "SPEC
 should…", this spec does it.
 
-**The single mechanism decision this spec makes (no alternative retained):** LOCAL mode
-relocates omp's **entire config root** into `./.elon-ko/` by exporting `PI_CONFIG_DIR` (R1),
-vendors `omp`+`bun` into `./.elon-ko/bin/` (R2), and requires re-exporting `PI_CONFIG_DIR` on
-every subsequent run via `./.elon-ko/env.sh` (R3). omp offers no plugins-only relocation
-(`RESEARCH.md` F1, F8); whole-home relocation is the only NFR-4-satisfying path.
+**The single mechanism decision this spec makes (no alternative retained):** LOCAL mode relocates
+omp's state into `./.elon-ko/` via a **dual-knob** — `PI_CONFIG_DIR` (relocates the config root:
+`marketplaces.json`, `agent/`, `install-id`) **and** `XDG_DATA_HOME=$OMP_LOCAL_HOME` (relocates the
+native module + the `data` category: `omp/plugins/`, `omp/natives/`). Both are exported at L2 and
+re-exported by `./.elon-ko/env.sh` on every subsequent run (R3). omp offers no plugins-only flag
+(`RESEARCH.md` F1, F8); the dual-knob is the only path that satisfies the user's literal "nothing
+global" (NFR-4/AC-2), because omp's native loader (`pi-natives/native/loader-state.js:51-57`)
+**ignores `PI_CONFIG_DIR`** and only honors `XDG_DATA_HOME` (D1 evidence, §5.4). **This overrides
+the prior R6/F4-derived XDG ban (old §12/§17):** that ban rested on the false assumption that
+`PI_CONFIG_DIR` relocates natives — disproven by the loader source and the empirical re-proof
+(§5.4). User-approved at RESOLVE cycle 1.
 
 ---
 
@@ -169,8 +175,9 @@ vars. The first line of `die` output keeps the existing `✗` prefix (`elon_ko.s
 | `unzip` (host prerequisite, NFR-3) | system pkg manager (identical handling) | system pkg manager — **identical**; NOT vendored |
 | `omp` binary | `$HOME/.local/bin/omp` | `$OMP_LOCAL_HOME/bin/omp` |
 | `bun` binary | `$HOME/.bun/bin/bun` | `$OMP_LOCAL_HOME/bin/bun` |
-| Plugin A `elon-ko-gate` | `~/.omp/plugins/` | `$OMP_LOCAL_HOME/plugins/` |
-| Plugin B `elon-ko-agents` | `~/.omp/` marketplace | `$OMP_LOCAL_HOME/` marketplace |
+| Plugin A `elon-ko-gate` | `~/.omp/plugins/` | `$OMP_LOCAL_HOME/omp/plugins/` |
+| Plugin B `elon-ko-agents` | `~/.omp/` marketplace | `$OMP_LOCAL_HOME/omp/plugins/` (registry at `$OMP_LOCAL_HOME/marketplaces.json`) |
+| omp native module (`pi_natives.<plat>.node`) | `~/.omp/natives/<ver>/` | `$OMP_LOCAL_HOME/omp/natives/<ver>/` (via `XDG_DATA_HOME`, §5.4) |
 | Pre-release cache (pre-release sub-mode only) | `$HOME/.omp-prerelease/<tag>/` | `$OMP_LOCAL_HOME/prerelease/<tag>/` |
 | Mode marker | `$HOME/.omp/elon-ko.install.json` | `$OMP_LOCAL_HOME/.install.json` |
 
@@ -223,19 +230,25 @@ are exported (set once in step L2, persist for the whole script run).
 has no trailing slash). Require `tar`, `curl` (already used today), and a writable cwd. If
 `$PWD` is not writable → `die`.
 
-**L1. Create the local tree.** `mkdir -p "$OMP_LOCAL_HOME"/bin "$OMP_LOCAL_HOME"/prerelease`.
-(The `plugins/` subdir is created by omp itself under the relocated config root; do NOT
-pre-create it — its existence is the post-install relocation proof, §5.3.)
+**L1. Create the local tree.** `mkdir -p "$OMP_LOCAL_HOME"/bin "$OMP_LOCAL_HOME"/prerelease
+"$OMP_LOCAL_HOME"/omp`. The `omp` subdir is the **XDG gate dir** (§5.4): omp's native loader and
+its `DirResolver` data-category branch relocate only when `fs.existsSync($XDG_DATA_HOME/omp)` is
+true; if it is absent, omp silently falls back to `~/.omp/` for natives+plugins and **the fix
+fails** (D1 root cause). `omp/plugins/` and `omp/natives/<ver>/` are then created by omp itself
+under it (do NOT pre-create those — their existence is the post-install relocation proof, §5.3).
 
-**L2. Derive and export the relocation environment (R1/R3).** Compute `PI_CONFIG_DIR` per §5 and
-export, along with the bin-vendoring vars:
+**L2. Derive and export the dual-knob relocation environment (R1/R3 + §5.4).** Compute
+`PI_CONFIG_DIR` per §5 and export BOTH relocation vars, along with the bin-vendoring vars:
 
 ```sh
-export PI_CONFIG_DIR="<per §5>"
+export PI_CONFIG_DIR="<per §5>"          # relocates configRoot (marketplaces.json, agent/)
+export XDG_DATA_HOME="$OMP_LOCAL_HOME"   # relocates natives + data category (omp/plugins/, omp/natives/)
 export BUN_INSTALL="$OMP_LOCAL_HOME"
 export PI_INSTALL_DIR="$OMP_LOCAL_HOME/bin"
 export PATH="$OMP_LOCAL_HOME/bin:$PATH"
 ```
+
+`PI_CONFIG_DIR` and `XDG_DATA_HOME` are BOTH required — see §5.4 for why neither alone suffices.
 
 **L3. unzip (identical to GLOBAL, NFR-3).** Run the **unchanged** `elon_ko.sh:129-158` block.
 `unzip` is a host prerequisite of the bun installer; LOCAL does NOT vendor it and does NOT
@@ -290,16 +303,15 @@ BEFORE the first `omp plugin …` call.
 Identical command sequence to `elon_ko.sh:213-231`:
 `omp plugin marketplace remove "$MARKETPLACE"` (tolerant) → `omp plugin marketplace add "$MKT_SOURCE"`
 → if `SUB_MODE=stable`, `omp plugin marketplace update "$MARKETPLACE"` (tolerant). Because
-`PI_CONFIG_DIR` is exported, `marketplaces.json` is written to `$OMP_LOCAL_HOME/marketplaces.json`
-(`RESEARCH.md` F3, F5) — closing the one write that XDG could not move. R6: do NOT add
-`--scope project`.
+are exported, `marketplaces.json` is written to `$OMP_LOCAL_HOME/marketplaces.json`
+(configRoot, relocated by `PI_CONFIG_DIR` — `RESEARCH.md` F3, F5). R6: do NOT add `--scope project`.
 
 **L8. Plugin A (commands unchanged).** Identical to `elon_ko.sh:240-243`:
 `omp plugin uninstall elon-ko-gate` (tolerant) → `omp plugin install "$GH_A" --force`. Lands in
-`$OMP_LOCAL_HOME/plugins/`. (`GH_A="github:${REPO}${REF:+#$REF}"`, `elon_ko.sh:187`, mode-independent.)
+`$OMP_LOCAL_HOME/omp/plugins/` (the `data` category, redirected by `XDG_DATA_HOME` + the L1 gate dir).
 
 **L9. Plugin B (commands unchanged).** Identical to `elon_ko.sh:246-248`:
-`omp plugin install "$PLUGIN_B@$MARKETPLACE" --force`. Lands in `$OMP_LOCAL_HOME/plugins/`.
+`omp plugin install "$PLUGIN_B@$MARKETPLACE" --force`. Lands in `$OMP_LOCAL_HOME/omp/plugins/`.
 
 **Pre-release sub-mode only (LOCAL + `<tag>`):** the tarball resolution (`elon_ko.sh:194-211`)
 runs with `extract_dir="$OMP_LOCAL_HOME/prerelease/$TAG"` (i.e. `PRERELEASE_BASE` from §3.1),
@@ -392,9 +404,60 @@ fi
 ```
 
 This is the **primary** guard against a silent global write. The **secondary** (always
-available, no runtime needed) post-install assertion is: after L9,
-`[ -f "$OMP_LOCAL_HOME/marketplaces.json" ]` (proves configRoot relocated — `marketplaces.json`
-is written to configRoot, `RESEARCH.md` F3) AND the enumerated global paths are unchanged (§14 AC-2).
+available, no runtime needed) post-install assertions are: after L9,
+[ -f "$OMP_LOCAL_HOME/marketplaces.json" ] (proves configRoot relocated — `marketplaces.json`
+is written to configRoot, `RESEARCH.md` F3), [ -d "$OMP_LOCAL_HOME/omp/plugins" ] (proves the
+`data` category relocated via `XDG_DATA_HOME`), and — the D1-specific proof — the local native
+module exists at `$OMP_LOCAL_HOME/omp/natives/<ver>/pi_natives.<platform>.node` (§5.4), AND the
+enumerated global paths are unchanged incl. `~/.omp/natives/` (§14 AC-2). The natives check is
+load-bearing: if the L1 gate dir were missing, natives would land in `~/.omp/natives/` instead.
+
+### 5.4 The dual-knob: why `XDG_DATA_HOME` is also required (D1 resolution)
+
+**D1 root cause (empirically proven, RESOLVE cycle 1).** omp's native module —
+`pi_natives.<platform>.node`, ~130 MB — is resolved by a loader that lives in
+`@oh-my-pi/pi-natives/native/loader-state.js`, NOT by `dirs.ts`. That loader's `getNativesDir()`
+(loader-state.js:51-57) is:
+
+```js
+function getNativesDir() {
+    const xdgDataHome = process.env.XDG_DATA_HOME;
+    if (xdgDataHome && fs.existsSync(path.join(xdgDataHome, "omp"))) {
+        return path.join(xdgDataHome, "omp", "natives");
+    }
+    return path.join(os.homedir(), ".omp", "natives");
+}
+```
+
+It **ignores `PI_CONFIG_DIR` entirely** and honors only `XDG_DATA_HOME`, gated on
+`$XDG_DATA_HOME/omp` existing on disk. The `getNativesDir()` in `pi-utils/src/dirs.ts:624`
+(`dirs.rootSubdir("natives","cache")`, which DOES honor `PI_CONFIG_DIR`) is a **different, unused
+function** — it misled RESEARCH F1 and the original SPEC §11/§12. The loader also calls
+`cleanupStaleNativeVersions({ nativesDir, currentVersion })` (loader-state.js:189-209, invoked at
+:652) which `rm -rf`s every sibling version dir under `nativesDir` except the current one.
+
+**Consequence for LOCAL mode:** with `PI_CONFIG_DIR` alone, every `omp` invocation in the project
+still stages its native module to `~/.omp/natives/<ver>/` and prunes the global omp's other native
+versions — a direct NFR-4/AC-2 violation AND a cross-mode pruning hazard. This is defect D1.
+
+**Resolution (user-approved option (d), dual-knob).** Export `XDG_DATA_HOME=$OMP_LOCAL_HOME` AND
+pre-create `$OMP_LOCAL_HOME/omp` (L1) so the loader's `existsSync` gate passes. Then:
+
+- natives → `$OMP_LOCAL_HOME/omp/natives/<ver>/pi_natives.<platform>.node`
+- `cleanupStaleNativeVersions` runs against `$OMP_LOCAL_HOME/omp/natives/` → the global
+  `~/.omp/natives/` is never pruned (bonus: the pruning hazard is **eliminated**, not just avoided).
+
+The SAME `$XDG_DATA_HOME/omp` gate (with `APP_NAME="omp"`) also drives omp's `DirResolver`
+data-category branch (`dirs.ts` F4), so the `data` category — including `plugins/` — relocates to
+`$OMP_LOCAL_HOME/omp/` under the same knob. One pre-created dir satisfies both gates.
+
+**`env.sh` MUST re-export `XDG_DATA_HOME`** (not just at install time): the loader runs on EVERY
+`omp` start, so a later bare `omp` without `XDG_DATA_HOME` would load+prune `~/.omp/natives/` again.
+
+**Accepted cost (overrides old §12/§17).** `XDG_DATA_HOME` is a system-wide convention; sourcing
+`env.sh` redirects the `data` category of *every* XDG-aware tool in that shell, not only omp. The
+prior R6/F4-derived XDG ban is **lifted for LOCAL mode** on this evidence-justified, user-approved
+basis. GLOBAL mode is unaffected (never exports `XDG_DATA_HOME`). Surfaced as residual risk R-F.
 
 ---
 
@@ -404,9 +467,9 @@ is written to configRoot, `RESEARCH.md` F3) AND the enumerated global paths are 
 
 LOCAL MUST install in this order — **bun before omp** — and both MUST see the L2 exports:
 
-1. mkdir tree (L1)
-2. export `PI_CONFIG_DIR`, `BUN_INSTALL=$OMP_LOCAL_HOME`, `PI_INSTALL_DIR=$OMP_LOCAL_HOME/bin`,
-   `PATH` with local bin first (L2)
+1. mkdir tree incl. the `omp` XDG gate dir (L1)
+2. export `PI_CONFIG_DIR`, `XDG_DATA_HOME=$OMP_LOCAL_HOME`, `BUN_INSTALL=$OMP_LOCAL_HOME`,
+   `PI_INSTALL_DIR=$OMP_LOCAL_HOME/bin`, `PATH` with local bin first (L2)
 3. unzip (L3)
 4. **bun** install (L4) — `BUN_INSTALL` honored → bun at `$OMP_LOCAL_HOME/bin/bun`
 5. **omp** install (L5) — `--binary` + `PI_INSTALL_DIR` → omp at `$OMP_LOCAL_HOME/bin/omp`
@@ -457,9 +520,13 @@ Either way, **after L5 assert** (mandatory): `~/.zshrc`, `~/.bashrc` byte-identi
 # Generated by elon_ko.sh LOCAL install.
 # Source this file from the project root to activate the project-local omp home:
 #   source ./.elon-ko/env.sh
-# PI_CONFIG_DIR is REQUIRED: without it, a bare `omp` reads ~/.omp and does NOT see
-# the plugins installed here. Do not edit by hand; re-run `bash elon_ko.sh -local` to regenerate.
+# BOTH PI_CONFIG_DIR and XDG_DATA_HOME are REQUIRED. PI_CONFIG_DIR relocates omp's
+# config root (marketplaces.json, agent/); XDG_DATA_HOME relocates the native module
+# + data category (omp/plugins/, omp/natives/). Without XDG_DATA_HOME a later bare
+# `omp` loads natives from ~/.omp/natives/ AND prunes it (cleanupStaleNativeVersions).
+# Do not edit by hand; re-run `bash elon_ko.sh -local` to regenerate.
 export PI_CONFIG_DIR='<PI_CONFIG_DIR>'
+export XDG_DATA_HOME='<OMP_LOCAL_HOME>'
 export PATH='<OMP_LOCAL_HOME>/bin:$PATH'
 export BUN_INSTALL='<OMP_LOCAL_HOME>'
 export PI_INSTALL_DIR='<OMP_LOCAL_HOME>/bin'
@@ -469,10 +536,11 @@ export PI_INSTALL_DIR='<OMP_LOCAL_HOME>/bin'
   works sourced from any cwd, not only the project root).
 - `<PI_CONFIG_DIR>` = the derived value from §5.2 (literal, install-time).
 - `PATH` uses a literal `:$PATH` tail so it composes with the user's existing PATH on source.
-- **R3 load-bearing point:** exporting `PATH` alone is INSUFFICIENT. `env.sh` MUST export
-  `PI_CONFIG_DIR`, or a later bare `omp` resolves to `~/.omp` and the local plugins are invisible.
-  `BUN_INSTALL`/`PI_INSTALL_DIR` are included for consistency (so the vendored binaries remain
-  the resolved ones in subsequent shells).
+- **R3 load-bearing point:** exporting `PATH` alone is INSUFFICIENT. `env.sh` MUST export BOTH
+  `PI_CONFIG_DIR` (else a bare `omp` reads `~/.omp` and local plugins are invisible) AND
+  `XDG_DATA_HOME` (else a bare `omp` loads+prunes `~/.omp/natives/`, violating NFR-4 and deleting
+  the global omp's native versions — D1, §5.4). `BUN_INSTALL`/`PI_INSTALL_DIR` are included for
+  consistency (so the vendored binaries remain the resolved ones in subsequent shells).
 
 ### 7.2 LOCAL summary block (template)
 
@@ -641,18 +709,26 @@ exists:
 
 ## 11. Contents of `./.elon-ko/` & side effects (R5)
 
-`./.elon-ko/` holds omp's **whole relocated home**, not only `{bin,plugins,prerelease}/`. The
-three dirs in D1 are the *minimum/primary* contents; omp will also create (`RESEARCH.md` F3, F5, F7):
+`./.elon-ko/` holds omp's **whole relocated home**, split across two roots by the dual-knob
+(§5.4). The three dirs in D1 are the *minimum/primary* contents; omp also creates:
 
-- `marketplaces.json` (catalog registry)
-- `install-id` (per-project telemetry/dedup id — no longer machine-global)
-- `agent/` — `agent.db` (**holds auth credentials + settings**), `sessions/`, `history.db`,
-  `models.db`, `blobs/`, `memories/`
-- `plugins/installed_plugins.json`, `plugins/cache/`, `plugins/node_modules/`,
-  `omp-plugins.lock.json`, `package.json`
+- **configRoot** (`./.elon-ko/` — relocated by `PI_CONFIG_DIR`): `marketplaces.json` (catalog
+  registry), `install-id` (per-project, no longer machine-global), `agent/` — `agent.db`
+  (**auth credentials + settings**), `sessions/`, `history.db`, `models.db`, `blobs/`, `memories/`.
+- **data category** (`./.elon-ko/omp/` — relocated by `XDG_DATA_HOME`, gated on this dir existing):
+  `omp/plugins/` — `installed_plugins.json`, `cache/`, `node_modules/`, `omp-plugins.lock.json`,
+  `package.json` (Plugin A + Plugin B land here); and `omp/natives/<ver>/pi_natives.<platform>.node`
+  — the ~130 MB native module (D1; §5.4).
 
-These are **expected, not bugs.** VALIDATE must not flag them as stray global writes (they are
-inside the project tree).
+**Layout split (load-bearing):** `marketplaces.json` is at configRoot (`./.elon-ko/`), while plugins
++ natives are under the data category (`./.elon-ko/omp/`). VALIDATE's AC-12-primary path is
+`./.elon-ko/omp/plugins/` (not `./.elon-ko/plugins/`). These are all **expected, not bugs**; VALIDATE
+must not flag them as stray global writes (they are inside the project tree).
+
+**Pruning hazard eliminated (bonus, §5.4).** Because `cleanupStaleNativeVersions` now runs against
+`./.elon-ko/omp/natives/` instead of `~/.omp/natives/`, a LOCAL run can no longer delete the global
+omp's native versions. (Empirically re-proven: a pre-seeded `~/.omp/natives/16.2.7/` survives a
+LOCAL run that loads 16.2.8.)
 
 **Auth isolation (must surface in output + docs):** the user's omp auth (provider keys / OAuth)
 is **not shared** with a LOCAL project — `agent.db` is per-project. The first `omp` run in the
@@ -676,8 +752,14 @@ excludes the project tree).
   GLOBAL (just with `PI_CONFIG_DIR` exported). Do NOT use `omp plugin install --scope project`
   (moves only the manifest, not the cache — `RESEARCH.md` F3) and do NOT use `omp plugin link`
   (writes into global `node_modules` — `RESEARCH.md` F8). Both leak under `$HOME`.
-- **No XDG.** Do NOT relocate via `XDG_DATA_HOME` — it does not move `marketplaces.json`
-  (configRoot, `RESEARCH.md` F3/F4) and would violate NFR-4. `PI_CONFIG_DIR` is the sole mechanism.
+- **XDG ban LIFTED for LOCAL mode (D1 resolution, user-approved).** The prior "No XDG" prohibition
+  is rescinded FOR LOCAL MODE ONLY. It was derived from R6/F4 on the (false) assumption that
+  `PI_CONFIG_DIR` relocates natives; the loader source (`loader-state.js:51-57`) disproves this
+  (§5.4). LOCAL MUST export BOTH `PI_CONFIG_DIR` (configRoot) AND `XDG_DATA_HOME=$OMP_LOCAL_HOME`
+  (natives + data category), and pre-create `$OMP_LOCAL_HOME/omp` (the XDG gate dir).
+  `XDG_DATA_HOME` alone is still insufficient (it does not move `marketplaces.json`, F3) — BOTH
+  knobs are required. GLOBAL mode never exports `XDG_DATA_HOME` (unchanged). The old "`PI_CONFIG_DIR`
+  is the sole mechanism" line is superseded.
 - **No symlink farm** (`~/.omp → $PWD/.elon-ko`) — creating `~/.omp` is itself a `$HOME` write and
   is machine-global, breaking D5/NFR-1 (`RESEARCH.md` F8-b).
 - **No omp source patch** — unnecessary given `PI_CONFIG_DIR` works (`RESEARCH.md` F8-d).
@@ -716,9 +798,9 @@ AC-2 is **rewritten per R4**; AC-12 is **RESOLVED GO** (no fallback scoping need
 | AC | Req ref | Satisfied by | How Validator verifies |
 |---|---|---|---|
 | **AC-1** (no-flag regression) | FR-1/NFR-1 | §4.1 | Run `bash elon_ko.sh` on a clean env; diff artifact set + summary vs. the pre-change script's output. Expect identical except the new `~/.omp/elon-ko.install.json` marker (FR-9) and absence of any coexistence notice (clean machine). No new global *dirs*. |
-| **AC-2** (LOCAL writes nothing global — **R4-narrowed**) | FR-2/NFR-4 | §4.2, §6.3, §11 | Snapshot the **enumerated** global paths (`~/.omp`, `~/.local/bin`, `~/.bun`, `~/.omp-prerelease`, `~/.zshrc`, `~/.bashrc`, `~/.profile`) before/after `bash elon_ko.sh -local` in a clean project. Assert byte-identical (rc) / no new entries (dirs). **Spec note:** a raw `$HOME` tree-diff is explicitly UNSATISFIABLE when the project is under `$HOME`, because `./.elon-ko/.install.json` (FR-9) and the relocated omp home are themselves children of `$HOME` — hence the enumeration. All artifacts exist under `./.elon-ko/{bin,plugins,prerelease}/` (+ the §11 expected omp-home files). |
+| **AC-2** (LOCAL writes nothing global — **R4-narrowed, now HOLDS for natives too**) | FR-2/NFR-4 | §4.2, §6.3, §11, §5.4 | Snapshot the **enumerated** global paths (`~/.omp` **incl. `natives/`**, `~/.local/bin`, `~/.bun`, `~/.omp-prerelease`, `~/.zshrc`, `~/.bashrc`, `~/.profile`) before/after `bash elon_ko.sh -local` in a clean project. Assert byte-identical (rc) / no new entries (dirs) — **now achievable including `~/.omp/natives/`**, because the dual-knob (§5.4) relocates natives to `./.elon-ko/omp/natives/`. A pre-seeded `~/.omp/natives/<other-ver>/` MUST survive (pruning-hazard proof). All artifacts exist under `./.elon-ko/{bin,prerelease,omp/{plugins,natives}}/` + configRoot files (`marketplaces.json`, `agent/`). |
 | **AC-3** (alias) | FR-3 | §2.2 | `bash elon_ko.sh --local` produces the same `./.elon-ko/` tree and stdout as `-local`. |
-| **AC-4** (LOCAL PATH/env) | FR-7 | §7 | After a LOCAL install: `./.elon-ko/env.sh` exists and exports `PI_CONFIG_DIR` + PATH; summary prints the exact `export PATH="$PWD/.elon-ko/bin:$PATH"` line AND the `source ./.elon-ko/env.sh` instruction; `~/.zshrc` + `~/.bashrc` byte-identical before/after. (R3: assert env.sh contains `PI_CONFIG_DIR`, not PATH-only.) |
+| **AC-4** (LOCAL PATH/env) | FR-7 | §7 | After a LOCAL install: `./.elon-ko/env.sh` exists and exports `PI_CONFIG_DIR` **AND `XDG_DATA_HOME`** + PATH; summary prints the exact `export PATH="$PWD/.elon-ko/bin:$PATH"` line AND the `source ./.elon-ko/env.sh` instruction; `~/.zshrc` + `~/.bashrc` byte-identical before/after. (R3: assert env.sh contains BOTH `PI_CONFIG_DIR` and `XDG_DATA_HOME`, not PATH-only.) |
 | **AC-5** (CLI grammar) | FR-4/FR-5 | §2 | All parse per §2.2 table: `… -local`, `… -local <tag>`, `… -local uninstall`, `OMP_AGENT_REF=vX … -local`, `… uninstall -local` (≡ `… -local uninstall`), `--local`. `… -foo` exits non-zero with the §2.4 usage message. `… -global` is rejected (unknown flag). `… <tag1> <tag2>` (>1 positional) exits non-zero. |
 | **AC-6** (markers) | FR-9 | §8 | After GLOBAL: `~/.omp/elon-ko.install.json` exists with `mode=global` + the installed `ref`. After LOCAL: `./.elon-ko/.install.json` exists with `mode=local` + `ref`. Validate full §8.2 schema. |
 | **AC-7** (mode-scoped uninstall) | FR-10 | §9 | With both modes installed: `bash elon_ko.sh -local uninstall` removes `./.elon-ko/` entirely and leaves `~/.omp/` (and `~/.local/bin`, `~/.bun`) unchanged; `bash elon_ko.sh uninstall` removes the global install and leaves `./.elon-ko/` unchanged. Snapshot both trees before/after. |
@@ -726,7 +808,7 @@ AC-2 is **rewritten per R4**; AC-12 is **RESOLVED GO** (no fallback scoping need
 | **AC-9** (same-mode idempotency) | FR-11 | §10.1 | Run `… -local` twice and `…` (global) twice; second run succeeds, no duplicate marketplace/plugin registrations, no errors. Marker `installed_at` refreshed. |
 | **AC-10** (pre-release per mode) | FR-13 | §3.2, §4.2 | `bash elon_ko.sh pr-dev-<tag>` → `$HOME/.omp-prerelease/<tag>/`; `bash elon_ko.sh -local pr-dev-<tag>` → `./.elon-ko/prerelease/<tag>/`. Both pin Plugin A+B to the tag. |
 | **AC-11** (naming distinction) | FR-14 | §1, §4.2 | `bash elon_ko.sh -local` (stable) creates NO pre-release tarball cache and does NOT invoke the tarball code path; `bash elon_ko.sh <tag>` (global pre-release) still registers a local marketplace under `~/.omp-prerelease/`. Output messages keep the two "local" senses distinct. |
-| **AC-12** (research-gated) | — | §5, §6 | **RESOLVED GO.** DrPe confirms relocation is feasible (R1). AC-2/AC-7 for the LOCAL plugin tree are achievable as specified; no fallback scoping required. Validator confirms `$OMP_LOCAL_HOME/marketplaces.json` + `$OMP_LOCAL_HOME/plugins/` are populated after a LOCAL install (relocation succeeded) and `~/.omp` is untouched. |
+| **AC-12** (research-gated) | — | §5, §5.4, §6 | **RESOLVED GO.** DrPe confirms relocation is feasible (R1) + D1 dual-knob (§5.4). Validator confirms `$OMP_LOCAL_HOME/marketplaces.json` (configRoot), `$OMP_LOCAL_HOME/omp/plugins/` (data category), AND `$OMP_LOCAL_HOME/omp/natives/<ver>/pi_natives.<platform>.node` are populated after a LOCAL install, and `~/.omp` (incl. `natives/`) is untouched. |
 
 ---
 
@@ -741,7 +823,7 @@ pre-change file):
 | `42-45` | constants (`REPO`, `MARKETPLACE`, `PLUGIN_B`, `PRERELEASE_BASE`) | `PRERELEASE_BASE` becomes mode-dependent: GLOBAL keeps `${OMP_PRERELEASE_DIR:-$HOME/.omp-prerelease}`; LOCAL uses `$OMP_LOCAL_HOME/prerelease` (§3.1) | FR-13 |
 | `47-58` | single-positional parser (`ARG="${1:-}"`) | **Replaced** by the §2.3 multi-arg parser (flag scan + ≤1 positional); sets `INSTALL_MODE` + `SUB_MODE` + `REF` | FR-3/FR-4/FR-5 |
 | `60-65` | helpers (`have`,`say`,`ok`,`warn`,`die`) | Unchanged (reused by both modes) | — |
-| `67-69` | `export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"` | **Branched**: GLOBAL keeps this verbatim; LOCAL instead exports `$OMP_LOCAL_HOME/bin` first + `PI_CONFIG_DIR`/`BUN_INSTALL`/`PI_INSTALL_DIR` (§4.2 L2) | FR-6/FR-7 |
+| `67-69` | `export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"` | **Branched**: GLOBAL keeps this verbatim; LOCAL instead exports `$OMP_LOCAL_HOME/bin` first + `PI_CONFIG_DIR`/`XDG_DATA_HOME`/`BUN_INSTALL`/`PI_INSTALL_DIR` (§4.2 L2, §5.4) | FR-6/FR-7 |
 | `70-119` | uninstall (global only) | **Branched** by `INSTALL_MODE`×`SUB_MODE`: GLOBAL uninstall byte-identical + marker removal + cross-mode notice (§9.2); LOCAL uninstall path added (§9.1). Tolerant no-op for absent target (§9.3). | FR-10 |
 | `121-158` | unzip check + system install | **Unchanged** in both modes (NFR-3) | FR-15 |
 | `160-170` | omp: `have omp` else `--source` | **Branched**: GLOBAL unchanged; LOCAL path-scoped presence + `--binary`+`PI_INSTALL_DIR` (§4.2 L5, §6) | FR-2/R2 |
@@ -788,6 +870,13 @@ uninstall, §10.2 coexistence-notice detection.
   regenerate. Inherent to whole-home relocation (the physical home is at a fixed path); documented
   in `env.sh`'s header comment (§7.1).
 
+- **R-F (MEDIUM) — `XDG_DATA_HOME` blast radius in `env.sh`.** Sourcing `./.elon-ko/env.sh` exports
+  `XDG_DATA_HOME=$OMP_LOCAL_HOME`, which redirects the `data` category of EVERY XDG-aware tool in
+  that shell (not only omp). This is the accepted cost of the dual-knob (§5.4): without it, a later
+  bare `omp` loads+prunes `~/.omp/natives/` (D1). Mitigation: `env.sh` is sourced explicitly and
+  scoped to the project shell; users running other XDG tools in the same shell should be aware.
+  GLOBAL mode is unaffected. DocWorm must document this (sibling of R-C).
+
 ---
 
 ## 17. Out of scope (SPEC phase)
@@ -801,4 +890,4 @@ uninstall, §10.2 coexistence-notice detection.
 - **No changes to the omp/bun external installers** — only how/where `elon_ko.sh` invokes them.
 - **No direnv** (no `.envrc` auto-write). **No cross-project linking** of a LOCAL install.
 - **No `--global` flag** (D3). **No version-pinning changes** beyond composing `OMP_AGENT_REF`/`<tag>` with the mode flag (already in §2).
-- **No XDG, no symlink farm, no omp source patch, no `--scope project`/`link`** (§12).
+- **No symlink farm, no omp source patch, no `--scope project`/`link`** (§12). (The "No XDG" prohibition was lifted for LOCAL mode — §12/§5.4, D1 resolution.)
