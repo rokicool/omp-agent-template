@@ -4,7 +4,7 @@
 
 This template binds the oh-my-pi session to a gated agent pipeline. Two mechanisms make it **non-ignorable** — the model cannot bypass them by interpreting prompts differently:
 
-1. **The root session IS Elon.** **Plugin A (`elon-ko-gate`)** — an extension-package — binds the interactive session to the orchestrator role: it ships the `enforce-orchestrator` gate (`src/enforce-orchestrator.ts`), a Definition-of-Done rule (`rules/ro-definition-of-done.md`, `alwaysApply`), and the bundled Elon framing (`src/append-system.default.md`, re-injected each session as an advisory message and overridable by a project-local `<cwd>/.omp/APPEND_SYSTEM.md`). The gate hard-blocks every tool outside Elon's contract at the root via a `tool_call` handler. Elon routes, gates, and relays; he never implements.
+1. **The root session IS Elon.** **Plugin A (`elon-ko-gate`)** — an extension-package — binds the interactive session to the orchestrator role: it ships the `enforce-orchestrator` gate (`src/enforce-orchestrator.ts`), two always-apply rules — Definition-of-Done (`rules/ro-definition-of-done.md`) and the Orchestrator Invariant (`rules/ro-orchestrator-invariant.md`), and the bundled Elon framing (`src/append-system.default.md`, re-injected each session as an advisory message and overridable by a project-local `<cwd>/.omp/APPEND_SYSTEM.md`). The gate hard-blocks every tool outside Elon's contract at the root via a `tool_call` handler. Elon routes, gates, and relays; he never implements.
 2. **Team agents are real agent definitions.** Each role is shipped by **Plugin B (`elon-ko-agents`)**, a marketplace entry (`source: ./agents`) whose 8 agent definitions live under `plugins/agents/agents/<name>.md` with `tools:` / `spawns:` frontmatter that oh-my-pi enforces at the harness level. A subagent physically cannot call a tool not in its list, and cannot spawn an agent not in its `spawns` list.
 
 The detailed behavioral protocol for each role lives in its skill at `plugins/agents/skills/<name>/SKILL.md`. The agent definition enforces the **tool boundary**; the skill defines the **procedure**.
@@ -25,6 +25,7 @@ The detailed behavioral protocol for each role lives in its skill at `plugins/ag
 | Hard | `enforce-orchestrator` extension — `tool_call` block at the interactive root | No |
 | Hard | `plugins/agents/agents/<name>.md` `tools:` / `spawns:` frontmatter — Plugin B (subagents) | No |
 | Sticky | `rules/ro-definition-of-done.md` always-apply rule — Plugin A (re-attached every turn, survives compaction) | Prompt-level |
+| Sticky | `rules/ro-orchestrator-invariant.md` always-apply rule — Plugin A (re-attached every turn, survives compaction) | Prompt-level |
 | Framing | bundled `src/append-system.default.md` — Plugin A (re-injected advisory message; override via `.omp/APPEND_SYSTEM.md`) | Prompt-level |
 
 Escape hatch: set `OMP_BYPASS_ORCHESTRATOR=1` to disable the root guard (emergencies only, e.g. the pipeline is broken and a file must be patched by hand).
@@ -77,4 +78,4 @@ Agent failure is a routing problem, not an implementation problem. Elon solves r
 
 ## Harness Precedence
 
-The enforcement mechanisms above — the `enforce-orchestrator` extension's `tool_call` blocks and the agent-definition `tools:` / `spawns:` frontmatter — are **harness-level runtime restrictions**. The model cannot override them regardless of how it reads the system prompt; a blocked tool throws. Prompt-level layers (`RULES.md`, `APPEND_SYSTEM.md`, `AGENTS.md`, `PROTO.md`) remain advisory and reinforce the enforced invariants. For the full workflow protocol (phases, gates, paths, commit conventions), see [PROTO.md](PROTO.md).
+The enforcement mechanisms above — the `enforce-orchestrator` extension's `tool_call` blocks and the agent-definition `tools:` / `spawns:` frontmatter — are **harness-level runtime restrictions**. The model cannot override them regardless of how it reads the system prompt; a blocked tool throws. Prompt-level layers (`APPEND_SYSTEM.md`, `AGENTS.md`, `PROTO.md`) remain advisory and reinforce the enforced invariants. For the full workflow protocol (phases, gates, paths, commit conventions), see [PROTO.md](PROTO.md).
