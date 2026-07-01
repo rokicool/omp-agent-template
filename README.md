@@ -56,7 +56,7 @@ Pin `elon-ko-gate` to a release tag (Plugin B always tracks latest);
 re-running is idempotent — every step is safe to repeat:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.3.1 bash
+curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | OMP_AGENT_REF=v2.4.0 bash
 ```
 
 See [`elon_ko.sh`](./elon_ko.sh) for exactly what it runs.
@@ -156,7 +156,7 @@ curl -fsSL https://raw.githubusercontent.com/rokicool/elon-ko/main/elon_ko.sh | 
 ```bash
 # 1. Plugin A — the gate + rule (installs user-wide; requires bun).
 #    Pin to a release tag. Switching the ref later needs `omp plugin uninstall elon-ko-gate` first.
-omp plugin install github:rokicool/elon-ko#v2.3.1
+omp plugin install github:rokicool/elon-ko#v2.4.0
 # local dev / linking:
 omp plugin link ./elon-ko
 
@@ -180,7 +180,7 @@ install-location choice described above).
 | **`AGENTS.md`** | `<cwd>/AGENTS.md` | **Overwritten on every install.** This is the file omp actually reads: omp auto-loads `<cwd>/AGENTS.md` by walking up from the current directory, so the team's agent registry and enforcement protocol become part of the model context in this project. If the installer cannot fetch it, the install **fails** — it is the one load-bearing scaffold file. |
 | **`PROTO.md`** | `<cwd>/PROTO.md` | **Overwritten on every install.** A reference/protocol document (the full phased workflow). Doc-only — omp does **not** auto-load it; read it on demand. A failed fetch is non-fatal (the installer prints a warning). |
 
-Both are fetched from the repo at the **same ref as Plugin A** (`OMP_AGENT_REF`, default `v2.3.1`), so the deployed guidance always matches the installed gate version.
+Both are fetched from the repo at the **same ref as Plugin A** (`OMP_AGENT_REF`, default `v2.4.0`), so the deployed guidance always matches the installed gate version.
 
 **APPEND_SYSTEM.md — already load-bearing, not copied.** The Elon framing message already ships as a bundled default inside Plugin A (`elon-ko-gate`) and is re-injected every session, so the installer does **not** deploy it. To customize Elon's framing for a project, create **`<cwd>/.omp/APPEND_SYSTEM.md`** — it overrides (replaces) the bundled default in that project.
 
@@ -188,7 +188,7 @@ Both are fetched from the repo at the **same ref as Plugin A** (`OMP_AGENT_REF`,
 
 **Uninstall leaves them in place.** `elon_ko.sh uninstall` (either mode) does **not** remove `<cwd>/AGENTS.md` or `<cwd>/PROTO.md` — they are project files you may have come to rely on. The installer prints a notice telling you to delete them by hand if you want them gone.
 
-> **Release timing.** The `RULES.md`→rule move and the current `AGENTS.md` coherence edit live in the repo's current working tree. The **stable** default install (`#v2.3.1`) fetches Plugin A *and* the scaffold files from the published `v2.3.1` tag, which **predates** these changes — so at `v2.3.1` the gate does not yet carry the `ro-orchestrator-invariant` rule and the deployed `AGENTS.md` still references `RULES.md`. They land for stable consumers once the next release tag is cut and the installer's default ref (`OMP_AGENT_REF`) is bumped. Pre-release / explicit-tag installs (e.g. `bash elon_ko.sh pr-<branch>-<sha>`) and installs from the current working tree get them immediately.
+> **Release timing.** The `RULES.md`→rule move and the `AGENTS.md` coherence edit ship as of **v2.4.0** — the **stable** default install (`#v2.4.0`) fetches Plugin A *and* the scaffold files from the published `v2.4.0` tag, so the gate carries the `ro-orchestrator-invariant` rule and the deployed `AGENTS.md` no longer references `RULES.md`. Older tagged installs (`#v2.3.1` and earlier) predate these changes and do not carry them.
 
 ## Uninstall
 
