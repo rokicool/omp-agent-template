@@ -211,6 +211,37 @@ EOF
   mv -f "$tmp" "$mpath"
 }
 
+# §3 — scaffold deploy (both modes). Deploys <cwd>-relative project-context files that
+# omp discovers by cwd-walk, NOT from the omp home (so identical in GLOBAL and LOCAL).
+# AGENTS.md is the ONLY omp-auto-loaded scaffold file (agents-md.ts:21-59) — fetch failure
+# is fatal. PROTO.md is doc-only — fetch failure is non-fatal. APPEND_SYSTEM.md is NOT
+# deployed (D-S2): already load-bearing via Plugin A's bundled default; override is
+# documented, not copied.
+deploy_scaffold() {                       # arg 1 = deploy ref ($REF)
+  local ref="$1" dest tmp
+  say "Deploying project-context files to the current directory ($PWD)"
+  # AGENTS.md — load-bearing; OVERWRITE ALWAYS (D-S1). Atomic write: tmp + mv.
+  tmp="$PWD/.AGENTS.md.tmp.$$"
+  if curl -fsSL "https://raw.githubusercontent.com/${REPO}/${ref}/scaffold/AGENTS.md" -o "$tmp"; then
+    mv -f "$tmp" "$PWD/AGENTS.md"
+    ok "AGENTS.md deployed → $PWD/AGENTS.md (overwrite-always; omp auto-loads it via walk-up from cwd)"
+  else
+    rm -f "$tmp" 2>/dev/null || true
+    die "failed to fetch AGENTS.md from ${REPO}@${ref}. This is the one omp-auto-loaded steering \
+file (discovery/agents-md.ts:21-59) — without it the orchestrator context is missing from this \
+project. Check the ref/tag and your network, then re-run."
+  fi
+  # PROTO.md — doc-only (no omp auto-load); OVERWRITE ALWAYS (§3.3) for ref-resolution.
+  tmp="$PWD/.PROTO.md.tmp.$$"
+  if curl -fsSL "https://raw.githubusercontent.com/${REPO}/${ref}/scaffold/PROTO.md" -o "$tmp"; then
+    mv -f "$tmp" "$PWD/PROTO.md"
+    ok "PROTO.md deployed → $PWD/PROTO.md (doc-only; read on demand; never omp-auto-loaded)"
+  else
+    rm -f "$tmp" 2>/dev/null || true
+    warn "PROTO.md could not be fetched from ${REPO}@${ref} — 'see PROTO.md' cross-refs will not resolve. Non-fatal (PROTO.md is doc-only)."
+  fi
+}
+
 # ── uninstall mode (mode-scoped, §9) ──────────────────────────────────────────
 # Removes everything elon-ko-specific. LOCAL uninstall scopes to $OMP_LOCAL_HOME
 # only; GLOBAL uninstall scopes to the global omp home. Both are tolerant no-ops
@@ -253,6 +284,8 @@ if [ "$SUB_MODE" = "uninstall" ]; then
   The GLOBAL install (~/.omp/), if any, is untouched. Shared runtimes (a global
   omp/bun) outside the project are left in place. Per-project opt-in markers
   (.omp/elon.json) are user data and are left untouched.
+  Project-context files (AGENTS.md, PROTO.md) in the current directory are left in
+  place — remove them manually if desired.
 ============================================================
 EOF
     exit 0
@@ -298,6 +331,8 @@ EOF
   Anything that was never installed was a silent no-op. oh-my-pi (omp) and
   bun are left in place — they are shared runtimes, not elon-ko-specific.
   Per-project opt-in markers (.omp/elon.json) are left untouched (user data).
+  Project-context files (AGENTS.md, PROTO.md) in the current directory are left in
+  place — remove them manually if desired.
 ============================================================
 EOF
     # (2) courtesy notice if a LOCAL install coexists (NOT removed; §9.2).
@@ -466,6 +501,10 @@ Re-run from the project root, or report this if the project lives outside \$HOME
   omp plugin install "${PLUGIN_B}@${MARKETPLACE}" --force || die "Plugin B install failed"
   ok "${PLUGIN_B} installed"
 
+  # §3.2 — deploy scaffold project-context files to <cwd> (both modes identical;
+  # cwd-relative, omp-home-independent). Runs after plugins install, before env.sh.
+  deploy_scaffold "$REF"
+
   # L10: emit env.sh (§7.1 exact template; <…> are install-time literals; the
   # PATH line keeps a literal $PATH tail so it composes on source).
   cat > "$OMP_LOCAL_HOME/env.sh" <<EOF
@@ -507,6 +546,12 @@ EOF
     printf '    • elon-ko-agents    — 8 agents + 9 skills (always latest)\n'
   fi
   cat <<'EOF'
+
+  Project-context files deployed to the current directory:
+    • AGENTS.md   — omp auto-loads this (walks up from your cwd). Overwritten on every install.
+    • PROTO.md    — the orchestrator protocol doc (read on demand; never auto-loaded).
+  APPEND_SYSTEM.md is already active (bundled with elon-ko-gate). To customize Elon's framing,
+  create .omp/APPEND_SYSTEM.md in this project (it replaces the default).
 
   Activate this install in your shell (REQUIRED before running omp here):
     source ./.elon-ko/env.sh
@@ -618,6 +663,9 @@ else
   omp plugin install "${PLUGIN_B}@${MARKETPLACE}" --force || die "Plugin B install failed"
   ok "${PLUGIN_B} installed"
 
+  # §3.2 — deploy scaffold project-context files to <cwd> (both modes identical).
+  deploy_scaffold "$REF"
+
   # ── summary ──────────────────────────────────────────────────────────────────
   if [ "$MODE" = "pre-release" ]; then
     cat <<EOF
@@ -636,6 +684,12 @@ else
   To return to the latest STABLE release, re-run without a tag:
     bash elon_ko.sh
 
+  Project-context files deployed to the current directory:
+    • AGENTS.md   — omp auto-loads this (walks up from your cwd). Overwritten on every install.
+    • PROTO.md    — the orchestrator protocol doc (read on demand; never auto-loaded).
+  APPEND_SYSTEM.md is already active (bundled with elon-ko-gate). To customize Elon's framing,
+  create .omp/APPEND_SYSTEM.md in this project (it replaces the default).
+
   The gate is dormant until a project opts in:
     echo '{"enabled": true}' > .omp/elon.json
 ============================================================
@@ -649,6 +703,12 @@ EOF
   Plugins:
     • elon-ko-gate         — gate + Definition-of-Done rule
     • elon-ko-agents    — 8 agents + 9 skills (always latest)
+
+  Project-context files deployed to the current directory:
+    • AGENTS.md   — omp auto-loads this (walks up from your cwd). Overwritten on every install.
+    • PROTO.md    — the orchestrator protocol doc (read on demand; never auto-loaded).
+  APPEND_SYSTEM.md is already active (bundled with elon-ko-gate). To customize Elon's framing,
+  create .omp/APPEND_SYSTEM.md in this project (it replaces the default).
 
   The gate is dormant until a project opts in:
     echo '{"enabled": true}' > .omp/elon.json
