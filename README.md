@@ -165,6 +165,31 @@ omp plugin marketplace add rokicool/elon-ko
 omp plugin install elon-ko-agents@elon-ko
 ```
 
+## Project-context files (AGENTS.md, PROTO.md)
+
+On top of installing the plugins, the installer deploys a small set of
+**project-context steering files into the directory you run it from**
+(`<cwd>`, your project root). These are what make the team's agent guidance
+load-bearing for that project. They land in **the project directory itself —
+not the omp home** — and are written the same way in **both GLOBAL and LOCAL
+install modes** (this is separate from, and additional to, the LOCAL/GLOBAL
+install-location choice described above).
+
+| File | Path | Behavior |
+|---|---|---|
+| **`AGENTS.md`** | `<cwd>/AGENTS.md` | **Overwritten on every install.** This is the file omp actually reads: omp auto-loads `<cwd>/AGENTS.md` by walking up from the current directory, so the team's agent registry and enforcement protocol become part of the model context in this project. If the installer cannot fetch it, the install **fails** — it is the one load-bearing scaffold file. |
+| **`PROTO.md`** | `<cwd>/PROTO.md` | **Overwritten on every install.** A reference/protocol document (the full phased workflow). Doc-only — omp does **not** auto-load it; read it on demand. A failed fetch is non-fatal (the installer prints a warning). |
+
+Both are fetched from the repo at the **same ref as Plugin A** (`OMP_AGENT_REF`, default `v2.3.1`), so the deployed guidance always matches the installed gate version.
+
+**APPEND_SYSTEM.md — already load-bearing, not copied.** The Elon framing message already ships as a bundled default inside Plugin A (`elon-ko-gate`) and is re-injected every session, so the installer does **not** deploy it. To customize Elon's framing for a project, create **`<cwd>/.omp/APPEND_SYSTEM.md`** — it overrides (replaces) the bundled default in that project.
+
+**RULES.md — no longer a separate file.** The guidance that used to ship as a standalone `RULES.md` now ships as an **always-apply omp rule** inside Plugin A (`rules/ro-orchestrator-invariant.md`). It takes effect automatically wherever Plugin A is installed — you do not place it manually.
+
+**Uninstall leaves them in place.** `elon_ko.sh uninstall` (either mode) does **not** remove `<cwd>/AGENTS.md` or `<cwd>/PROTO.md` — they are project files you may have come to rely on. The installer prints a notice telling you to delete them by hand if you want them gone.
+
+> **Release timing.** The `RULES.md`→rule move and the current `AGENTS.md` coherence edit live in the repo's current working tree. The **stable** default install (`#v2.3.1`) fetches Plugin A *and* the scaffold files from the published `v2.3.1` tag, which **predates** these changes — so at `v2.3.1` the gate does not yet carry the `ro-orchestrator-invariant` rule and the deployed `AGENTS.md` still references `RULES.md`. They land for stable consumers once the next release tag is cut and the installer's default ref (`OMP_AGENT_REF`) is bumped. Pre-release / explicit-tag installs (e.g. `bash elon_ko.sh pr-<branch>-<sha>`) and installs from the current working tree get them immediately.
+
 ## Uninstall
 
 This is the **GLOBAL** uninstall — it removes the install under `~/.omp`. To remove a **LOCAL** install instead, run `bash elon_ko.sh -local uninstall` (see **Local install (`-local`)** above). The two are mode-scoped: uninstalling one leaves the other untouched.
@@ -180,10 +205,13 @@ bash elon_ko.sh uninstall
 ```
 
 `omp` and `bun` are left in place (shared runtimes). Per-project opt-in markers
-(`.omp/elon.json`) are user data and are not touched. The elon-ko-only
-pre-release source cache (`~/.omp-prerelease`) is removed if present. Every step
-is a tolerant no-op if already absent, so it is safe on a clean machine or one
-that only ever had the old branding.
+(`.omp/elon.json`) are user data and are not touched. The project-context files
+the installer wrote to your directory (`<cwd>/AGENTS.md`, `<cwd>/PROTO.md`) are
+also left in place — the installer prints a notice naming them; remove them by
+hand if you want them gone (see **Project-context files** above). The
+elon-ko-only pre-release source cache (`~/.omp-prerelease`) is removed if
+present. Every step is a tolerant no-op if already absent, so it is safe on a
+clean machine or one that only ever had the old branding.
 
 ## Switch it on (per project)
 
